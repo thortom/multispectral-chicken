@@ -1,0 +1,13 @@
+# Ignore Python Package Files #
+###############################
+*.pyc
+
+# Ignore IPython Notebook Files #
+#################################
+.ipynb_checkpoints/
+
+# Ignore Images #
+#################
+*.tif
+*.tiff
+*.png
