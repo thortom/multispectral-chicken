@@ -1,4 +1,4 @@
-myFiles = dir('*.dpt'); %gets all wav files in struct
+myFiles = dir('*.dpt'); %gets all dpt files in struct
 
 for k = 1:length(myFiles)
   fileName = myFiles(k).name;
