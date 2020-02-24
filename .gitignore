@@ -11,3 +11,7 @@
 *.tif
 *.tiff
 *.png
+*.xcf
+*.mat
+
+# Ignore
