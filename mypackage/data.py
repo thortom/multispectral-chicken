@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image
 import glob, os
+import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from scipy.signal import savgol_filter
@@ -98,7 +99,7 @@ class Dataset:
         for idx, infile in enumerate(Dataset.__list_files_by_file_type(os.path.join(dataset_folder, "labels"), ['tif', 'png'])):
             file_name = infile.split('/')[-1].split('.')[0]
             y = Dataset.read_image(infile)
-            if only_with_contaminant and np.max(np.unique(y)) > 1:
+            if (not only_with_contaminant) or (np.max(np.unique(y)) > 1):
                                         # Here we assume that indexes 0 and 1 are belt and chicken meat
                 Y.append(y)
                 info.append(file_name)
@@ -110,8 +111,8 @@ class Dataset:
             X.append(Dataset.read_image(f"{dataset_folder}/{infile}.tif"))
 
         # Ensuring only one contaminant type
+        Y = np.array(Y)
         if only_one_contaminant_type:
-            Y = np.array(Y)
             for i in np.unique(Y):
                 if i > 2:
                     Y[Y == i] = 2
@@ -144,13 +145,15 @@ class Dataset:
             # The maximum value observed is 75, thus 80 is more than the max
             max_pix_val = 80.0
             X_train /= max_pix_val
-            X_test  /= max_pix_val
+            if type(X_test) is np.ndarray:
+                X_test  /= max_pix_val
             
         elif scale == 'GlobalStandardization': # TODO: Use the preprocessing.StandardScaler() instead
             # global standardization of pixels
             mean, std = X_train.mean(), X_train.std()
             X_train = (X_train - mean) / std
-            X_test  = (X_test  - mean) / std
+            if type(X_test) is np.ndarray:
+                X_test  = (X_test  - mean) / std
             
         elif scale == 'RemoveTrend':
             average_spectra = np.squeeze(np.average(X_train, axis=(0, 1, 2)))
@@ -159,15 +162,17 @@ class Dataset:
             p = np.poly1d(z)
             
             X_train = X_train - p(x)
-            X_test  = X_test - p(x)
+            if type(X_test) is np.ndarray:
+                X_test  = X_test - p(x)
             
         elif scale == '1st_derivative':
             w, p = 21, 6 # See here Code/Scripts/SpectralDimensionReduction.ipynb
                          #   and here https://nirpyresearch.com/savitzky-golay-smoothing-method/
             X_train = savgol_filter(X_train, w, polyorder = p, deriv=1, axis=-1)
-            X_test  = savgol_filter(X_test,  w, polyorder = p, deriv=1, axis=-1)
-            X_train = X_train[:, :, :, 10:-10] # (59, 67, 84)]
-            X_test  = X_test[:, :, :, 10:-10]
+            X_train = X_train[:, :, :, 10:-10] # 10:-10 removes the noise at the ends # Interesting indexes are: (59, 67, 84)
+            if type(X_test) is np.ndarray:
+                X_test  = X_test[:, :, :, 10:-10]
+                X_test  = savgol_filter(X_test,  w, polyorder = p, deriv=1, axis=-1)
             
             
         return X_test, X_train
@@ -180,8 +185,8 @@ class Dataset:
         X_train = train.Unstack(principalComponents, k=n_components)
 
         test = StackTransform(X_test)
-        X_test = pca.transform(test.X_stack())
-        X_test = test.Unstack(X_test, k=n_components)
+        X_test_stacked = pca.transform(test.X_stack())
+        X_test = test.Unstack(X_test_stacked, k=n_components)
         
         if plot:
             import matplotlib.pyplot as plt
@@ -193,14 +198,23 @@ class Dataset:
             plt.plot(np.arange(1, n_components+1), [1]*n_components, "r--")
             plt.ylim(pca.explained_variance_ratio_[0]*0.8, 1.2)
             
-            plt.figure()
-            plt.imshow(X_train[0][:, :, 0:3])
+#             n_items, n, m, k = X_test.shape
+#             df = pd.DataFrame(X_test_stacked, columns=['PCA_1', 'PCA_2', 'PCA_3'])
+#             df['Labels'] = Y_test.reshape((n_items*n*m, 1)).copy()
+#             items = ['Belt', 'Meat', 'Contaminant 1', 'Contaminant 2', 'Contaminant 3', 'Contaminant 4']
+#             for i, item in enumerate(items):
+#                 df['Labels'][df['Labels'] == i+1] = item
+#             sns.pairplot(df, hue='Labels', height=3)
+#             plt.show()
         
         return X_train, X_test
     
     @staticmethod
     def train_test_split(X, Y, testRatio, randomState=345):
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=testRatio, random_state=randomState)
+        if testRatio > 0:
+            X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=testRatio, random_state=randomState)
+        else:
+            X_train, X_test, Y_train, Y_test = X, None, Y, None
         
         return X_train, X_test, Y_train, Y_test
     
@@ -209,7 +223,7 @@ class Dataset:
         
         for infile in glob.glob(os.path.join(dataSetFolder, "*.png")):
             print(infile)
-            Dataset.reset_label_values(infile, infile.split(".png")[0]+"_out.png", plot)
+            Dataset.reset_label_values(infile, infile, plot)
 
 class StackTransform():
     def __init__(self, X, Y=None):
