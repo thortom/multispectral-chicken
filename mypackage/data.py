@@ -2,6 +2,9 @@ import numpy as np
 from PIL import Image
 import glob, os
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from sklearn import preprocessing
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from scipy.signal import savgol_filter
@@ -44,6 +47,16 @@ class Dataset:
     def read_image(imageName, channels_to_use=[], channel_index_last=True):
         img = Image.open(imageName)
         return Dataset.tiff_to_np(img, channels_to_use, channel_index_last)
+    
+    @staticmethod
+    def __add_legend_to_image(y, img, legend=None):
+        # https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
+        values = np.unique(y)
+        colors = [ img.cmap(img.norm(value)) for value in values]
+        if not legend:
+            legend = values
+        patches = [ mpatches.Patch(color=colors[i], label=f"{name}") for i, name in enumerate(legend) ]
+        plt.legend(handles=patches)
 
     @staticmethod
     def reset_label_values(imageName, newImageName, plot=False):
@@ -68,16 +81,8 @@ class Dataset:
         image = Image.fromarray(y)
 
         if plot:
-            import matplotlib.pyplot as plt
-            import matplotlib.patches as mpatches
-            im = plt.imshow(y)
-
-            # https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
-            values = np.unique(y)
-            colors = [ im.cmap(im.norm(value)) for value in values]
-            patches = [ mpatches.Patch(color=colors[i], label=f"Value {i}") for i in values ]
-            plt.legend(handles=patches)
-
+            img = plt.imshow(y)
+            Dataset.__add_legend_to_image(y, img)
             plt.show()
             
         # Save the image after the plot to allow for cancelation
@@ -89,6 +94,13 @@ class Dataset:
         for extension in types:
             fileList += glob.glob(os.path.join(path, f'*.{extension}'))
         return fileList
+    
+    @staticmethod
+    def __only_one_contaminant(Y):
+        for i in np.unique(Y):
+            if i > 2:
+                Y[Y == i] = 2
+        return Y
 
     @staticmethod
     def load(dataset_folder, only_with_contaminant=False, only_one_contaminant_type=True, load_rest=False):
@@ -96,7 +108,7 @@ class Dataset:
 
         Y = []
         file_names = []
-        for idx, infile in enumerate(Dataset.__list_files_by_file_type(os.path.join(dataset_folder, "labels"), ['tif', 'png'])):
+        for infile in Dataset.__list_files_by_file_type(os.path.join(dataset_folder, "labels"), ['tif', 'png']):
             file_name = infile.split('/')[-1].split('.')[0]
             y = Dataset.read_image(infile)
             if (not only_with_contaminant) or (np.max(np.unique(y)) > 1):
@@ -110,19 +122,17 @@ class Dataset:
         for infile in file_names:
             X.append(Dataset.read_image(f"{dataset_folder}/{infile}.tif"))
 
-        # Ensuring only one contaminant type
         Y = np.array(Y)
         if only_one_contaminant_type:
-            for i in np.unique(Y):
-                if i > 2:
-                    Y[Y == i] = 2
+            # Ensuring only one contaminant type
+            Dataset.__only_one_contaminant(Y)
         Y += 1 # Have the indexes not as zero-indexed
         
         if load_rest:
             ###############################
             # Loading the unlabled images #
             X_rest = []
-            for idx, infile in enumerate(Dataset.__list_files_by_file_type(dataset_folder, ['tif'])):
+            for infile in Dataset.__list_files_by_file_type(dataset_folder, ['tif']):
                 file_name = infile.split('/')[-1].split('.')[0]
                 if file_name not in file_names:
                     print(f"Loading {file_name}")
@@ -131,6 +141,25 @@ class Dataset:
             return np.array(X), Y, info, np.array(X_rest)
         
         return np.array(X), Y, info
+    
+    @staticmethod
+    def load_files(file_list, dataset_folder, only_one_contaminant_type=True):
+        info = file_list
+
+        Y = []
+        X = []
+        for file_name in file_list:
+            Y.append(Dataset.read_image(f"{dataset_folder}/labels/{file_name}.png"))
+            X.append(Dataset.read_image(f"{dataset_folder}/{file_name}.tif"))
+        Y = np.array(Y)
+        X = np.array(X)
+        
+        if only_one_contaminant_type:
+            # Ensuring only one contaminant type
+            Dataset.__only_one_contaminant(Y)
+        Y += 1 # Have the indexes not as zero-indexed
+        
+        return X, Y, info
     
     @staticmethod
     def scale(X_test, X_train, scale='GlobalCenterting'):
@@ -145,15 +174,18 @@ class Dataset:
             # The maximum value observed is 75, thus 80 is more than the max
             max_pix_val = 80.0
             X_train /= max_pix_val
-            if type(X_test) is np.ndarray:
+            if type(X_test) is np.ndarray: # Checking for "if not None:"
                 X_test  /= max_pix_val
             
         elif scale == 'GlobalStandardization': # TODO: Use the preprocessing.StandardScaler() instead
             # global standardization of pixels
-            mean, std = X_train.mean(), X_train.std()
-            X_train = (X_train - mean) / std
+            train = StackTransform(X_train)
+            scaler = preprocessing.StandardScaler()
+            scaler.fit(train.X_stack())
+            X_train = train.Unstack(scaler.transform(train.X_stack()))
             if type(X_test) is np.ndarray:
-                X_test  = (X_test  - mean) / std
+                test = mypackage.StackTransform(X_test)
+                X_test = test.Unstack(scaler.transform(test.X_stack()))
             
         elif scale == 'RemoveTrend':
             average_spectra = np.squeeze(np.average(X_train, axis=(0, 1, 2)))
