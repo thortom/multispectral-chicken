@@ -1,4 +1,4 @@
-path(path, 'ics_reader')
+path(path, '/home/thor/HI/Lokaverkefni/Code/Scripts/ics_reader')
 path(path, '/home/thor/MATLAB Add-Ons/Apps/Slicer')
 path(path, '/home/thor/HI/PreviousCourses/RAF512M/Lokaverkefni/Slicer/matImage')
 installMatImage
@@ -54,3 +54,22 @@ imageLabeler(tiff_stack)
 
 % https://labelbox.com/blog/introducing-image-segmentation/
 % https://ch.mathworks.com/help/vision/ug/label-pixels-for-semantic-segmentation.html
+
+%% The main processing loop. That loops over all files in folder and saves them as mat images
+myDir = '/home/thor/HI/Lokaverkefni/Code/data/TomraData/day1/legmeat'; %gets directory
+myFiles = dir(fullfile(myDir,'*.ics')); %gets all ics files in struct
+for k = 1:length(myFiles)
+    baseFileName = myFiles(k).name;
+    fullFileName = fullfile(myDir, baseFileName);
+    fprintf(1, 'Now reading %s\n', fullFileName);
+
+    X = readICSFile(fullFileName);
+
+    figure()
+    image = X.data;
+    image = permute(image,[2 3 1]);
+    imagesc(image(:, :, 150)); colormap(gray);
+
+    fileName = strrep(fullFileName,'.ics','.mat');
+    save(fileName, '-double', 'image');
+end
