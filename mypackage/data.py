@@ -55,7 +55,7 @@ class Dataset:
         colors = [ img.cmap(img.norm(value)) for value in values]
         if not legend:
             legend = values
-        patches = [ mpatches.Patch(color=colors[i], label=f"{name}") for i, name in enumerate(legend) ]
+        patches = [ mpatches.Patch(color=colors[i], label=f"[{i}] {name}") for i, name in enumerate(legend) ]
         plt.legend(handles=patches)
 
     @staticmethod
@@ -177,14 +177,14 @@ class Dataset:
             if type(X_test) is np.ndarray: # Checking for "if not None:"
                 X_test  /= max_pix_val
             
-        elif scale == 'GlobalStandardization': # TODO: Use the preprocessing.StandardScaler() instead
+        elif scale == 'GlobalStandardization':
             # global standardization of pixels
             train = StackTransform(X_train)
             scaler = preprocessing.StandardScaler()
             scaler.fit(train.X_stack())
             X_train = train.Unstack(scaler.transform(train.X_stack()))
             if type(X_test) is np.ndarray:
-                test = mypackage.StackTransform(X_test)
+                test = StackTransform(X_test)
                 X_test = test.Unstack(scaler.transform(test.X_stack()))
             
         elif scale == 'RemoveTrend':
@@ -211,6 +211,11 @@ class Dataset:
     
     @staticmethod
     def PCA(X_train, X_test, n_components=3, plot=False):
+        '''Takes as input:
+               X_train - (n_items, n, m, k)
+               X_test  - (m_items, n, m, k)
+           Outputs:
+               X_train, X_test '''
         train = StackTransform(X_train)
         pca = PCA(n_components=n_components)
         principalComponents = pca.fit_transform(train.X_stack())
