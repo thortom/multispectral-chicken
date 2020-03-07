@@ -13,5 +13,13 @@
 *.png
 *.xcf
 *.mat
+*.jpg
+*.hdf5
 
-# Ignore
+# Ignore Text files #
+#####################
+*.txt
+
+# Ignore specific folders #
+###########################
+NotMyCode/*
