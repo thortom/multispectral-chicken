@@ -26,24 +26,23 @@ class FakeDataset:
 
         # Read all file in folder
         folder = 'SpectralReflectanceData'
-        for fileName in os.listdir(folder):
-            if '.csv' in fileName:
-
-                colName = fileName[16:-4]
-                tmp = pd.read_csv(f'{folder}/{fileName}', sep=";", index_col=0, names=[colName])
-
-                # Merge the file to one bigger array with correctly labeled coloms
-                if data is None:
-                    data = tmp
-                else:
-                    data[colName] = tmp[colName]
+        # Try this to query for substring - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.query.html
+        database_name = "SpectralAbsorbtionDatabase"
+        database = pd.read_pickle(database_name)
+        # TODO: Group together the material types
+        
+        return database
+                    
+    def transform_to_reflectance(self, data):
+        pass
     
     def generate_image(self):
         ''''Generates fake images based in the initialized FakeDataset parameters
             
             # Where x is the generated image and y is the corresponding label
             returns x, y'''
-        return x, y
+        image = np.zeros((100, 100, 1))
+        return image, label
     
     def get_images(self, numb_images):
         X, Y = [], []
