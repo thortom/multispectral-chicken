@@ -18,17 +18,23 @@ class FakeDataset:
         
             max_contaminants_per_piece:  The maximum number of contaminants per piece
             max_contaminant_classes:     
-        '''        
-        self.db, self.plastic_types = self.__load_spectra_db()
+        '''
+        self.chicken_types = {0: "Fillet", 1: "Thigh"}
+        self.database, self.plastic_types = self.__load_spectra_database()
+        self.database_wavelengths = [col for col in self.database.columns if type(col) == float]
         
         if wavelengths == "All":
-            self.wavelengths = [col for col in self.db.columns if type(col) == float]
+            self.wavelengths = self.database_wavelengths
         else:
             self.wavelengths            = wavelengths
         self.max_contaminants_per_piece = max_contaminants_per_piece
         self.max_contaminant_classes    = max_contaminant_classes
         
-    def __load_spectra_db(self):
+    def __get_all_of_type(self, type_name):
+        samples = self.database[self.database["Type"].str.contains(type_name)]
+        return samples.loc[:, samples.columns != "Type"]
+        
+    def __load_spectra_database(self):
         def rename_database_group(substring, type_name):
             items = database[database["Type"].str.contains(substring)].index
             for i, idx in enumerate(items):
@@ -42,7 +48,9 @@ class FakeDataset:
         database = database[database["Type"].str.contains("black_latex_glove") != True]
         # Here the order does matter, since some substrings used are contained in more than one groups
         rename_database_group("_fat_", "Fat")
-        rename_database_group("chicken_", "Chicken")
+        rename_database_group("chicken_not_as_red", "chicken_fillet_not_as_red")
+        rename_database_group("chicken_fillet", "Fillet")
+        rename_database_group("chicken_thigh", "Thigh")
 
         rename_database_group("pu_belt", "Plastic_Pu_Belt")
         rename_database_group("blue_belt_roll", "Plastic_Belt")
@@ -57,10 +65,34 @@ class FakeDataset:
         
         return database, plastic_types
     
+    def __resample_wavelengths(self, spectra_data, wavelengths):
+        n, m = spectra_data.shape
+        resample = lambda spectrum: np.interp(wavelengths, self.database_wavelengths, spectrum)
+        return np.apply_along_axis(resample, axis=1, arr=spectra_data) # Reduce spectral dimension down
+    
     def __collect_samples(self, material_type, shape):
         print(shape)
         print(material_type)
-        pass
+        def select_spectra(types):
+            item_selected = np.random.choice(list(types.keys())) # Choose randomly one item
+            type_selected = types[item_selected]
+            samples = self.__get_all_of_type(type_selected)
+            pixels_needed, spectral_dimension = shape
+            # Then randomly select from the database with resampling
+            idx_selected_spectrum = np.random.choice(len(samples), pixels_needed, replace=True)
+            selected_spectrum = samples.iloc[idx_selected_spectrum].values
+            # TODO: Before this I need to resample the wavebands
+            print(f"Desired shape {shape}")
+            print(f"selected_spectrum.shape {selected_spectrum.shape}")
+            print(f"len(self.wavelengths) {len(self.wavelengths)}")
+            return self.__resample_wavelengths(selected_spectrum, self.wavelengths)
+            
+        if   material_type == TYPE_BACKGROUND:
+            return np.zeros(shape)
+        elif material_type == TYPE_CHICKEN:
+            return select_spectra(self.chicken_types)
+        elif material_type == TYPE_CONTAMINANT:
+            return select_spectra(self.plastic_types)
                     
     def transform_to_reflectance(self, data):
         pass
@@ -78,7 +110,16 @@ class FakeDataset:
             # Then place plastic contaminants as oval items on the chichen
         else:
             y = base_label
-        x[y == TYPE_BACKGROUND] = self.__collect_samples(TYPE_BACKGROUND, y[y==TYPE_BACKGROUND].shape)
+            
+        squeezed_y = np.squeeze(y)
+        def fill_with_type(type_numb):
+            x[squeezed_y == type_numb]  = self.__collect_samples(type_numb,  x[squeezed_y==type_numb].shape)
+        fill_with_type(TYPE_BACKGROUND)
+        fill_with_type(TYPE_CHICKEN)
+        fill_with_type(TYPE_CONTAMINANT)
+#         x[y == TYPE_BACKGROUND]  = self.__collect_samples(TYPE_BACKGROUND,  x[y==TYPE_BACKGROUND].shape)
+#         x[y == TYPE_CHICKEN]     = self.__collect_samples(TYPE_CHICKEN,     x[y==TYPE_CHICKEN].shape)
+#         x[y == TYPE_CONTAMINANT] = self.__collect_samples(TYPE_CONTAMINANT, x[y==TYPE_CONTAMINANT].shape)
         
         return x, y
     
