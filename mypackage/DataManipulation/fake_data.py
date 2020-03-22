@@ -23,7 +23,7 @@ class FakeDataset:
         self.database, self.plastic_types = self.__load_spectra_database()
         self.database_wavelengths = [col for col in self.database.columns if type(col) == float]
         
-        if wavelengths == "All":
+        if (type(wavelengths) == str) and (wavelengths == "All"):
             self.wavelengths = self.database_wavelengths
         else:
             self.wavelengths            = wavelengths
@@ -66,13 +66,12 @@ class FakeDataset:
         return database, plastic_types
     
     def __resample_wavelengths(self, spectra_data, wavelengths):
+        '''Returns One-dimensional linear interpolation (a.k.a a straight line in between sample points).'''
         n, m = spectra_data.shape
         resample = lambda spectrum: np.interp(wavelengths, self.database_wavelengths, spectrum)
         return np.apply_along_axis(resample, axis=1, arr=spectra_data) # Reduce spectral dimension down
     
     def __collect_samples(self, material_type, shape):
-        print(shape)
-        print(material_type)
         def select_spectra(types):
             item_selected = np.random.choice(list(types.keys())) # Choose randomly one item
             type_selected = types[item_selected]
@@ -81,10 +80,7 @@ class FakeDataset:
             # Then randomly select from the database with resampling
             idx_selected_spectrum = np.random.choice(len(samples), pixels_needed, replace=True)
             selected_spectrum = samples.iloc[idx_selected_spectrum].values
-            # TODO: Before this I need to resample the wavebands
-            print(f"Desired shape {shape}")
-            print(f"selected_spectrum.shape {selected_spectrum.shape}")
-            print(f"len(self.wavelengths) {len(self.wavelengths)}")
+            # Resampling the wavebands to match the desired output
             return self.__resample_wavelengths(selected_spectrum, self.wavelengths)
             
         if   material_type == TYPE_BACKGROUND:
@@ -94,8 +90,12 @@ class FakeDataset:
         elif material_type == TYPE_CONTAMINANT:
             return select_spectra(self.plastic_types)
                     
-    def transform_to_reflectance(self, data):
-        pass
+    @staticmethod
+    def transform_to_reflectance(data):
+        '''The ransformation for absorbance to reflectance is the inverse of absorbance = log_10(C/reflectance).
+            Thus the transformation form refelctance to absorbance is
+                    reflectance = C/(10^absorbacne)'''
+        return 1 / (10**data)
     
     def generate_image(self, base_label=None):
         ''''Generates fake images based in the initialized FakeDataset parameters
@@ -106,20 +106,19 @@ class FakeDataset:
         if type(base_label) is not np.ndarray:
             y = np.zeros((100, 100, 1))
             # Set the whole image as belt backgorund
-            # Then place resonable large oval chicken shape
+            # Then place a resonable large oval chicken shape
             # Then place plastic contaminants as oval items on the chichen
         else:
             y = base_label
             
         squeezed_y = np.squeeze(y)
         def fill_with_type(type_numb):
-            x[squeezed_y == type_numb]  = self.__collect_samples(type_numb,  x[squeezed_y==type_numb].shape)
+            x[squeezed_y == type_numb] = self.__collect_samples(type_numb,  x[squeezed_y == type_numb].shape)
         fill_with_type(TYPE_BACKGROUND)
         fill_with_type(TYPE_CHICKEN)
         fill_with_type(TYPE_CONTAMINANT)
-#         x[y == TYPE_BACKGROUND]  = self.__collect_samples(TYPE_BACKGROUND,  x[y==TYPE_BACKGROUND].shape)
-#         x[y == TYPE_CHICKEN]     = self.__collect_samples(TYPE_CHICKEN,     x[y==TYPE_CHICKEN].shape)
-#         x[y == TYPE_CONTAMINANT] = self.__collect_samples(TYPE_CONTAMINANT, x[y==TYPE_CONTAMINANT].shape)
+        
+        # TODO: Add a image transformation to add diversity to the images generated
         
         return x, y
     
