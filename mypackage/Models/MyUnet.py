@@ -33,9 +33,6 @@ import spectral
 
 import mypackage
 
-init_notebook_mode(connected=True)
-%matplotlib inline
-
 from keras.layers import Input, BatchNormalization, Activation, Dense, Dropout
 from keras.layers.convolutional import Conv2D, Conv2DTranspose
 from keras.layers.pooling import MaxPooling2D, GlobalMaxPool2D

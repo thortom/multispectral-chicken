@@ -6,7 +6,8 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-DATA_BASE_PATH = "SpectralAbsorbtionDatabase.pkl"
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+DATA_BASE_PATH = f"{DIR_PATH}/SpectralAbsorbtionDatabase.pkl"
 TYPE_BACKGROUND  = 1
 TYPE_CHICKEN     = 2
 TYPE_CONTAMINANT = 3
@@ -123,12 +124,12 @@ class FakeDataset:
         return x, y
     
     def get_images(self, numb_images):
-        labels_path = "../data/tomra/"
+        labels_path = f"{DIR_PATH}/../../data/tomra/"
         _, labels, _ = mypackage.Dataset.load(labels_path, only_with_contaminant=True)
         
         X, Y = [], []
         numb_available_labels = len(labels)
-        selected_labels = np.random.choice(numb_available_labels, numb_images, replace=False)
+        selected_labels = np.random.choice(numb_available_labels, numb_images, replace=True)
         for i in selected_labels:
             x, y = self.generate_image(labels[i])
             X.append(x)
