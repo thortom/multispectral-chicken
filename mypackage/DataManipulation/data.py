@@ -162,7 +162,7 @@ class Dataset:
         return X, Y, info
     
     @staticmethod
-    def scale(X_test, X_train, scale='GlobalCenterting'):
+    def scale(X_test, X_train, scale='GlobalStandardization'):
         # Wording borrowed from here:
         #     https://machinelearningmastery.com/how-to-manually-scale-image-pixel-data-for-deep-learning/
         
@@ -170,17 +170,17 @@ class Dataset:
         #     https://scikit-learn.org/stable/auto_examples/preprocessing/plot_all_scaling.html#sphx-glr-auto-examples-preprocessing-plot-all-scaling-py
 
 
-        if scale == 'GlobalCenterting':
-            # The maximum value observed is 75, thus 80 is more than the max
-            max_pix_val = 80.0
-            X_train /= max_pix_val
-            if type(X_test) is np.ndarray: # Checking for "if not None:"
-                X_test  /= max_pix_val
+#         if scale == 'GlobalCenterting':
+#             # The maximum value observed is 75, thus 80 is more than the max
+#             max_pix_val = 80.0
+#             X_train /= max_pix_val
+#             if type(X_test) is np.ndarray: # Checking for "if not None:"
+#                 X_test  /= max_pix_val
             
-        elif scale == 'GlobalStandardization':
+        if scale == 'GlobalStandardization':
             # global standardization of pixels
             train = StackTransform(X_train)
-            scaler = preprocessing.StandardScaler()
+            scaler = preprocessing.StandardScaler(with_mean=True, with_std=True)
             scaler.fit(train.X_stack())
             X_train = train.Unstack(scaler.transform(train.X_stack()))
             if type(X_test) is np.ndarray:

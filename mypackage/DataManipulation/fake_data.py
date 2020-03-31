@@ -1,5 +1,8 @@
+import scipy.ndimage as ndimage
+from numba import jit
 import numpy as np
 import pandas as pd
+import IPython
 import mypackage
 import os
 
@@ -53,13 +56,13 @@ class FakeDataset:
         rename_database_group("chicken_fillet", "Fillet")
         rename_database_group("chicken_thigh", "Thigh")
 
-        rename_database_group("pu_belt", "Plastic_Pu_Belt")
-        rename_database_group("blue_belt_roll", "Plastic_Belt")
-        rename_database_group("tube", "Plastic_Tube")
-        rename_database_group("glove", "Plastic_Glove")
-        rename_database_group("liner", "Plastic_Liner")
-        rename_database_group("belt", "Plastic_Belt")
-        types = database[database["Type"].str.contains("Plastic")]["Type"].str.replace("[0-9()]+$", "")
+#         rename_database_group("pu_belt", "Plastic_Pu_Belt")
+#         rename_database_group("blue_belt_roll", "Plastic_Belt")
+#         rename_database_group("tube", "Plastic_Tube")
+#         rename_database_group("glove", "Plastic_Glove")
+#         rename_database_group("liner", "Plastic_Liner")
+#         rename_database_group("belt", "Plastic_Belt")
+        types = database[database["Type"].str.contains("plastic")]["Type"].str.replace("[0-9()]+$", "")
         plastic_types = dict(enumerate(np.unique(types)))
 
         # plastics = database[database["Type"].str.contains("plastic") &  (database["Type"].str.contains("liner") != True)]
@@ -85,54 +88,90 @@ class FakeDataset:
             return self.__resample_wavelengths(selected_spectrum, self.wavelengths)
             
         if   material_type == TYPE_BACKGROUND:
-            return np.zeros(shape)
+            return np.zeros(shape) # TODO: Add in the background
         elif material_type == TYPE_CHICKEN:
             return select_spectra(self.chicken_types)
         elif material_type == TYPE_CONTAMINANT:
             return select_spectra(self.plastic_types)
                     
     @staticmethod
-    def transform_to_reflectance(data):
+    def transform_to_reflectance(data, C=1):
         '''The ransformation for absorbance to reflectance is the inverse of absorbance = log_10(C/reflectance).
             Thus the transformation form refelctance to absorbance is
                     reflectance = C/(10^absorbacne)'''
-        return 1 / (10**data)
+        return C / (10**data)
     
-    def generate_image(self, base_label=None):
+    def __add_noise(self, column):
+        # https://stackoverflow.com/questions/14058340/adding-noise-to-a-signal-in-python
+        # 0.004 is the average variance for the noise in the three black latex glove measurements
+        return column + np.random.normal(0, 0.004, len(column))
+    
+    def generate_image(self, base_label=None, size=64, fill_chicken=True, img=None):
         ''''Generates fake images based in the initialized FakeDataset parameters
             
             # Where x is the generated image and y is the corresponding label
             returns x, y'''
-        x = np.zeros((100, 100, len(self.wavelengths)))
+        x = np.zeros((size, size, len(self.wavelengths)))
         if type(base_label) is not np.ndarray:
-            y = np.zeros((100, 100, 1))
-            # Set the whole image as belt backgorund
+            y = np.zeros((size, size, 1))
+            # Set the whole image as belt background
             # Then place a resonable large oval chicken shape
             # Then place plastic contaminants as oval items on the chichen
         else:
-            y = base_label
+            def get_max_min(center):
+                MIN, MAX = 0, 100
+                max_val = center + size // 2
+                if max_val > MAX:
+                    max_val = MAX
+                min_val = max_val - size
+                if min_val < MIN:
+                    min_val = MIN
+                    max_val = min_val + size
+                return min_val, max_val
+            indices_x, indices_y, _ = np.nonzero(base_label == TYPE_CONTAMINANT)
+            random_center_x = np.random.choice(indices_x)
+            random_center_y = np.random.choice(indices_y)
+            start_x, end_x = get_max_min(random_center_x)
+            start_y, end_y = get_max_min(random_center_y)
+            
+#             s = (100 - size) // 2
+            y = base_label[start_x:end_x, start_y:end_y, :].copy()
             
         squeezed_y = np.squeeze(y)
         def fill_with_type(type_numb):
-            x[squeezed_y == type_numb] = self.__collect_samples(type_numb,  x[squeezed_y == type_numb].shape)
-        fill_with_type(TYPE_BACKGROUND)
+            shape = x[squeezed_y == type_numb].shape
+            if shape[0] != 0:       # TODO: There should always be contaminants in all images
+                if type_numb == TYPE_BACKGROUND:
+                    x[squeezed_y == type_numb] = self.__collect_samples(TYPE_CHICKEN, shape)
+                    y[y == TYPE_BACKGROUND] = TYPE_CHICKEN
+                else:
+                    x[squeezed_y == type_numb] = self.__collect_samples(type_numb, shape)
         fill_with_type(TYPE_CHICKEN)
+        fill_with_type(TYPE_BACKGROUND)
         fill_with_type(TYPE_CONTAMINANT)
+        y -= 1 # This is done since the TYPE_BACKGROUND is changed to chicken. To have the labels asa 1 and 2 not 2 and 3
         
         # TODO: Add a image transformation to add diversity to the images generated
+        # TODO: Scale the label up from 64 to 100, then apply smaller gaussian_filter and then scale back down
+        #           Compare the output with the obvious plastic items
+        
+        # Add noise and blur the image
+        x = np.apply_along_axis(self.__add_noise, -1, x)
+        x = ndimage.gaussian_filter(x, sigma=(2, 2, 0), order=0) # sigma is the standard deviation for Gaussian kernel per channel
         
         return x, y
     
     def get_images(self, numb_images):
         labels_path = f"{DIR_PATH}/../../data/tomra/"
-        _, labels, _ = mypackage.Dataset.load(labels_path, only_with_contaminant=True)
+        img, labels, _ = mypackage.Dataset.load(labels_path, only_with_contaminant=True)
         
         X, Y = [], []
         numb_available_labels = len(labels)
         selected_labels = np.random.choice(numb_available_labels, numb_images, replace=True)
         for i in selected_labels:
-            x, y = self.generate_image(labels[i])
+            x, y = self.generate_image(labels[i], img=img[i])
             X.append(x)
             Y.append(y)
+        # IPython.display.clear_output(wait=True)   # TODO: Add in a progressbar/info log
         return np.array(X), np.array(Y)
         
