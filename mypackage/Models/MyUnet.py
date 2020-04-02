@@ -40,10 +40,10 @@ from keras.layers.merge import concatenate, add
 
 class UNet:
 
-    def __init__(self, X_train, Y_train, loss_func="categorical_crossentropy"):
+    def __init__(self, X_train, Y_train, loss_func="categorical_crossentropy", saved_mode_name="best-model.hdf5"):
         self.history          = None
         self.scale_factor     = 0
-        self.saved_mode_name  = "best-model.hdf5"
+        self.saved_mode_name  = saved_mode_name
         self.loss_function    = loss_func
         self.optimizer        = Adam(lr=0.001, decay=1e-06)
 
@@ -58,16 +58,19 @@ class UNet:
         return np_utils.to_categorical(Y)
 
     def __scale_input(self, data, add_dim=False):
-        if self.scale_factor != 0:
+        if self.scale_factor > 0:
             s = self.scale_factor
             data = np.pad(data, ((0, 0), (s, s), (s, s), (0, 0)), mode='constant', constant_values=0)
+        elif self.scale_factor < 0:
+            s = -self.scale_factor
+            data = data[:, s:-s, s:-s]
         
         if add_dim:
             data = data.reshape(*(data.shape), 1)
         return data
 
     def __scale_output(self, data):
-        if self.scale_factor != 0:
+        if self.scale_factor > 0:
             s = self.scale_factor
             return data[:, s:-s, s:-s]
         else:
@@ -81,7 +84,7 @@ class UNet:
 
         # load best weights
         self.model.load_weights(self.saved_mode_name)
-        self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
+#         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
 
         y_pred_test = self.model.predict(X_input)
         y_pred_test = np.argmax(y_pred_test, axis=-1)
@@ -100,8 +103,8 @@ class UNet:
             plt.title("True label")
 
             plt.figure(figsize=(7,7))
-            img = plt.imshow(y_pred_test[0])
-            mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[0], img)
+            img = plt.imshow(y_pred_test[selected])
+            mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
             plt.title("Predicted labels")
             plt.show()
 
@@ -117,28 +120,30 @@ class UNet:
         Y_input = self.__scale_input(self.Y_train)
         self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, **kwargs)
 
-    def retrain(self, X_train=None, Y_train=None, freeze_upto=0):
+    def retrain(self, X_train, Y_train, freeze_up_to=0, batch_size=20, epochs=10, **kwargs):
         '''Re-trains the model layers.
                 X_train = None        # If None then re-uses initialized training data
-                Y_  train = None        # If None then re-uses initialized training data
+                Y_train = None        # If None then re-uses initialized training data
                 freeze_upto = 0       # Re-trains on all the layers
         '''
-        # TODO: Implement this as a example of transfer-learning for different training data
-        # Start from the saved self.saved_mode_name
+        X_input = self.__scale_input(X_train, add_dim=True)
+        Y_input = self.__scale_input(self.__preprocess_y(Y_train))
+
+        # load best weights
+        self.model.load_weights(self.saved_mode_name)
 
         # Do something like this: https://www.tensorflow.org/tutorials/images/transfer_learning
         # Let's take a look to see how many layers are in the base model
-        print("Number of layers in the base model: ", len(base_model.layers))
-
-        # Fine-tune from this layer onwards
-        fine_tune_at = 100
+        print("Number of layers in the base model: ", len(self.model.layers))
 
         # Freeze all the layers before the `fine_tune_at` layer
-        for layer in base_model.layers[:fine_tune_at]:
-          layer.trainable =  False
+        for layer in self.model.layers[:freeze_up_to]:
+            layer.trainable = False
+            
         # Then recompile the model
         #    and then train the model
-        pass
+        self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
+        self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=None, **kwargs)
 
     def plot_training_results(self):
         # TODO: Do a side by side subplot of these two
@@ -180,12 +185,13 @@ class UNet:
 
         return x
 
+    # TODO: Chagne the model so that the spatial dimension holds the same undtil the spectral has dropped to 8, this allows for concatenation with the upsampling
     def __get_model(self, input_shape, output_units):
 
         _, windowSize, windowSize, L = input_shape
         S = 64
         if windowSize != S:
-            self.scale_factor = (S - windowSize) // 2 # TODO: Fix to handle larger windows and oddnumbers
+            self.scale_factor = (S - windowSize) // 2 # TODO: Fix to handle oddnumbers
 
         ########################################
         ## The model ###########################
@@ -213,6 +219,7 @@ class UNet:
         c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
         # print(f"c4: {c4._keras_shape}")
 
+        # TODO: Use pix2pix the same as I use in my standard_unet.py
         # Expansive Path
         u6 = Conv2DTranspose(n_filters * 8, (3, 3), strides = (2, 2), padding = 'same')(c5)
         u6 = concatenate([u6, c4])

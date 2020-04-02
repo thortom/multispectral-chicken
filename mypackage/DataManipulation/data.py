@@ -10,8 +10,8 @@ from sklearn.model_selection import train_test_split
 from scipy.signal import savgol_filter
 
 class Dataset:
-    layers = {"highImg": 0, "lowImg": 1, "plastImg": 2, "alImg": 3,
-                "lowImgReg": 4, "highImgReg": 5}
+    TOMRA_WAVELENGTHS = np.array([928, 932, 935, 939, 942, 946, 950, 953, 957, 960, 964, 968, 971, 975, 978, 982, 986, 989, 993, 997, 1000, 1004, 1007, 1011, 1015, 1018, 1022, 1025, 1029, 1033, 1036, 1040, 1043, 1047, 1051, 1054, 1058, 1061, 1065, 1069, 1072, 1076, 1079, 1083, 1087, 1090, 1094, 1097, 1101, 1105, 1108, 1112, 1115, 1119, 1123, 1126, 1130, 1134, 1137, 1141, 1144, 1148, 1152, 1155, 1159, 1162, 1166, 1170, 1173, 1177, 1180, 1184, 1188, 1191, 1195, 1198, 1202, 1206, 1209, 1213, 1216, 1220, 1224, 1227, 1231, 1234, 1238, 1242, 1245, 1249, 1252, 1256, 1260, 1263, 1267, 1271, 1274, 1278, 1281, 1285, 1289, 1292, 1296, 1299, 1303, 1307, 1310, 1314, 1317, 1321, 1325, 1328, 1332, 1335, 1339, 1343, 1346, 1350, 1353, 1357, 1361, 1364, 1368, 1371, 1375, 1379, 1382, 1386, 1390, 1393, 1397, 1400, 1404, 1408, 1411, 1415, 1418, 1422, 1426, 1429, 1433, 1436, 1440, 1444, 1447, 1451, 1454, 1458, 1462, 1465, 1469, 1472, 1476, 1480, 1483, 1487, 1490, 1494, 1498, 1501, 1505, 1508, 1512, 1516, 1519, 1523, 1527, 1530, 1534, 1537, 1541, 1545, 1548, 1552, 1555, 1559, 1563, 1566, 1570, 1573, 1577, 1581, 1584, 1588, 1591, 1595, 1599, 1602, 1606, 1609, 1613, 1617, 1620, 1624, 1627, 1631, 1635, 1638, 1642, 1645, 1649, 1653, 1656, 1660, 1664, 1667, 1671, 1674])
+    TOMRA_OBVIOUS_PLASTICS = ["20200213_120044_FM_fillet_repeat_sample_B_32", "20200213_120111_FM_fillet_repeat_sample_B_33", "20200213_120158_FM_fillet_repeat_sample_B_34", "20200213_120308_FM_fillet_repeat_sample_B_36", "20200213_120339_FM_fillet_repeat_sample_B_37", "20200213_120359_FM_fillet_repeat_sample_B_38"]
 
     @staticmethod
     def tiff_to_np(img, channels_to_use=[], channel_index_last=True):
@@ -135,7 +135,6 @@ class Dataset:
             for infile in Dataset.__list_files_by_file_type(dataset_folder, ['tif']):
                 file_name = infile.split('/')[-1].split('.')[0]
                 if file_name not in file_names:
-                    print(f"Loading {file_name}")
                     x = Dataset.read_image(infile)
                     X_rest.append(x)
             return np.array(X), Y, info, np.array(X_rest)
@@ -162,13 +161,12 @@ class Dataset:
         return X, Y, info
     
     @staticmethod
-    def scale(X_test, X_train, scale='GlobalStandardization'):
+    def scale(X_test, X_train, scaler='GlobalStandardization'):
         # Wording borrowed from here:
         #     https://machinelearningmastery.com/how-to-manually-scale-image-pixel-data-for-deep-learning/
         
         # TODO: Scale the data and compaire the "Variance Explained" difference
         #     https://scikit-learn.org/stable/auto_examples/preprocessing/plot_all_scaling.html#sphx-glr-auto-examples-preprocessing-plot-all-scaling-py
-
 
 #         if scale == 'GlobalCenterting':
 #             # The maximum value observed is 75, thus 80 is more than the max
@@ -177,37 +175,45 @@ class Dataset:
 #             if type(X_test) is np.ndarray: # Checking for "if not None:"
 #                 X_test  /= max_pix_val
             
-        if scale == 'GlobalStandardization':
-            # global standardization of pixels
-            train = StackTransform(X_train)
-            scaler = preprocessing.StandardScaler(with_mean=True, with_std=True)
-            scaler.fit(train.X_stack())
-            X_train = train.Unstack(scaler.transform(train.X_stack()))
+        if type(scaler) == str:
+            if scaler == 'GlobalStandardization':
+                # global standardization of pixels
+                train = StackTransform(X_train)
+                scaler = preprocessing.StandardScaler(with_mean=True, with_std=True)
+                scaler.fit(train.X_stack())
+                X_train = train.Unstack(scaler.transform(train.X_stack()))
+                if type(X_test) is np.ndarray:
+                    test = StackTransform(X_test)
+                    X_test = test.Unstack(scaler.transform(test.X_stack()))
+
+            elif scaler == 'RemoveTrend':
+                average_spectra = np.squeeze(np.average(X_train, axis=(0, 1, 2)))
+                x = np.arange(len(average_spectra))
+                z = np.polyfit(x, average_spectra, 1)
+                p = np.poly1d(z)
+
+                X_train = X_train - p(x)
+                if type(X_test) is np.ndarray:
+                    X_test  = X_test - p(x)
+
+            elif scaler == '1st_derivative':
+                w, p = 21, 6 # See here Code/Scripts/SpectralDimensionReduction.ipynb
+                             #   and here https://nirpyresearch.com/savitzky-golay-smoothing-method/
+                X_train = savgol_filter(X_train, w, polyorder = p, deriv=1, axis=-1)
+                X_train = X_train[:, :, :, 10:-10] # 10:-10 removes the noise at the ends # Interesting indexes are: (59, 67, 84)
+                if type(X_test) is np.ndarray:
+                    X_test  = X_test[:, :, :, 10:-10]
+                    X_test  = savgol_filter(X_test,  w, polyorder = p, deriv=1, axis=-1)
+        else:
             if type(X_test) is np.ndarray:
                 test = StackTransform(X_test)
                 X_test = test.Unstack(scaler.transform(test.X_stack()))
-            
-        elif scale == 'RemoveTrend':
-            average_spectra = np.squeeze(np.average(X_train, axis=(0, 1, 2)))
-            x = np.arange(len(average_spectra))
-            z = np.polyfit(x, average_spectra, 1)
-            p = np.poly1d(z)
-            
-            X_train = X_train - p(x)
-            if type(X_test) is np.ndarray:
-                X_test  = X_test - p(x)
-            
-        elif scale == '1st_derivative':
-            w, p = 21, 6 # See here Code/Scripts/SpectralDimensionReduction.ipynb
-                         #   and here https://nirpyresearch.com/savitzky-golay-smoothing-method/
-            X_train = savgol_filter(X_train, w, polyorder = p, deriv=1, axis=-1)
-            X_train = X_train[:, :, :, 10:-10] # 10:-10 removes the noise at the ends # Interesting indexes are: (59, 67, 84)
-            if type(X_test) is np.ndarray:
-                X_test  = X_test[:, :, :, 10:-10]
-                X_test  = savgol_filter(X_test,  w, polyorder = p, deriv=1, axis=-1)
+            if type(X_train) is np.ndarray:
+                train = StackTransform(X_train)
+                X_train = train.Unstack(scaler.transform(train.X_stack()))
             
             
-        return X_test, X_train
+        return X_test, X_train, scaler
     
     @staticmethod
     def PCA(X_train, X_test, n_components=3, plot=False, whiten=False):

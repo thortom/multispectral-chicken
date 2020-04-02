@@ -8,3 +8,4 @@ from .Models.ClassicalLearners import logistic_regression
 from .Models.ClassicalLearners import logistic_regression
 from .Models import PartialLeastSquares as PLS
 from .Models import MyUnet
+from .Models.HybridSN import HybridSN
