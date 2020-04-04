@@ -40,6 +40,7 @@ from keras.layers.merge import concatenate, add
 
 class UNet:
 
+    # TODO: Test out loss_func="dice_loss"
     def __init__(self, X_train, Y_train, loss_func="categorical_crossentropy", saved_mode_name="best-model.hdf5"):
         self.history          = None
         self.scale_factor     = 0
