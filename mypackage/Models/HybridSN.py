@@ -144,7 +144,7 @@ class HybridSN:
                 patch = X_input[i:i+1, r - margin:r + margin + 1, c - margin:c + margin + 1]
 
                 prediction = self.model.predict(patch)
-                y_pred_test[i, r - margin, c - margin] = np.argmax(prediction, axis=-1) # TODO: Change back to -> r, c
+                y_pred_test[i, r, c] = np.argmax(prediction, axis=-1)
 
         y_pred_test += 1
         classification = classification_report(Y_input.flatten(), y_pred_test.flatten())

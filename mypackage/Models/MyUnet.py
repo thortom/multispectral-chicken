@@ -98,12 +98,13 @@ class UNet:
             print(classification)
 
             # Plot results
-            plt.figure(figsize=(7,7))
+            plt.figure(figsize=(9, 5))
+            plt.subplot(121)
             selected = np.random.choice(len(Y_input))
             plt.imshow(np.argmax(Y_input, axis=-1)[selected])
             plt.title("True label")
 
-            plt.figure(figsize=(7,7))
+            plt.subplot(122)
             img = plt.imshow(y_pred_test[selected])
             mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
             plt.title("Predicted labels")
