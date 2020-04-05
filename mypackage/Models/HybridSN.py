@@ -26,10 +26,7 @@ import scipy.io as sio
 import os
 import spectral
 
-
-## GLOBAL VARIABLES
-test_ratio = 0.3
-windowSize = 100
+from numba import jit
 
 class HybridSN:
 
@@ -104,7 +101,7 @@ class HybridSN:
                 r, c = selectable_pixels[np.random.choice(len(selectable_pixels), replace=False)]
                 patch = data[r - margin:r + margin + 1, c - margin:c + margin + 1]
                 X.append(patch)
-                Y.append(label[r-margin, c-margin])
+                Y.append(label[r, c]) # The original code had an error here. It was label[r-margin, c-margin]
                 
             Y = self.label_binarizer.transform(np.array(Y))
             if self.output_units == 2:
@@ -115,7 +112,6 @@ class HybridSN:
             if aug is not None:
                 (X, Y) = next(aug.flow(X, labels, batch_size=batch_size))
             
-            print(f"yield (X, Y) {(X.shape, Y.shape)}")
             yield (X, Y)
 
     def __scale_output(self, data):
@@ -130,35 +126,39 @@ class HybridSN:
 
     def predict(self, X_input, Y_input, batch_size=1000):
         count, n, m, k = X_input.shape
-        if count != 1:
-            raise ValueError(f"The code only supports one image prediciton at a time. Passed input contains {count} images.")
-            
-        margin = int((self.windowSize - 1) / 2)
-        steps_per_epoch = np.ceil((n-margin)**2 / batch_size)
-        X_input, Y_input = self.__preprocess(X_input, Y_input)
-        gen_input = self.__data_generator(data=X_input,  label=Y_input,  batch_size=batch_size, in_order=True)
+        X_input = X_input.reshape(*(X_input.shape), 1)
+#         if count != 1:
+#             raise ValueError(f"The code only supports one image prediciton at a time. Passed input contains {count} images.")
 
         # load best weights
         self.model.load_weights(self.saved_mode_name)
-#         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
+        self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
 
-        y_pred_test = self.model.predict_generator(gen_input, steps=steps_per_epoch)
-        y_pred_test = np.argmax(y_pred_test, axis=-1)
+        y_pred_test = np.zeros((count, n, m))
+        for i in range(count):
+            margin = int((self.windowSize - 1) / 2)
+            selectable_pixels = self.__get_selectable_pixels(n, m, margin)
+#             y_pred_test = np.zeros((n, m))
+            # TODO: For each (r, c) do the prediction and collect the predictions to a reconstructed image
+            for r, c in selectable_pixels:
+                patch = X_input[i:i+1, r - margin:r + margin + 1, c - margin:c + margin + 1]
 
-#         classification = classification_report(np.argmax(Y_input, axis=-1).flatten(), y_pred_test.flatten())
-#         print(classification)
+                prediction = self.model.predict(patch)
+                y_pred_test[i, r - margin, c - margin] = np.argmax(prediction, axis=-1) # TODO: Change back to -> r, c
 
-        print(f"Y_input {Y_input.shape}, y_pred_test {y_pred_test.shape}")
+        y_pred_test += 1
+        classification = classification_report(Y_input.flatten(), y_pred_test.flatten())
+        print(classification)
+
         # Plot results
-        plt.figure(figsize=(7,7))
+        plt.figure(figsize=(9, 5))
+        plt.subplot(121)
         selected = np.random.choice(len(Y_input))
-#         plt.imshow(np.argmax(Y_input, axis=-1)[selected])
-        plt.imshow(np.squeeze(Y_input))
+        plt.imshow(np.squeeze(Y_input[selected]))
         plt.title("True label")
 
-        plt.figure(figsize=(7,7))
-#         img = plt.imshow(y_pred_test[selected])
-        img = plt.imshow(y_pred_test)
+        plt.subplot(122)
+        img = plt.imshow(y_pred_test[selected])
         mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
         plt.title("Predicted labels")
         plt.show()
@@ -228,7 +228,6 @@ class HybridSN:
         plt.legend(['Training','Validation'])
         plt.show()
 
-    # TODO: Change this to the original structure with PCA->30
     def __get_model(self):
 
 #         _, windowSize, windowSize, L = input_shape
@@ -245,11 +244,16 @@ class HybridSN:
 
         ## input layer## input layer
         input_layer = Input((S, S, L, 1))
+        
+        if self.K == 208:
+            strides = (1, 1, 3)
+        else: # Assumes K == 30 here
+            strides = (1, 1, 1)
 
         ## convolutional layers
-        conv_layer1 = Conv3D(filters=8, strides=(1, 1, 3), kernel_size=(3, 3, 7), activation='relu')(input_layer)
-        conv_layer2 = Conv3D(filters=16, strides=(1, 1, 3), kernel_size=(3, 3, 5), activation='relu')(conv_layer1)
-        conv_layer3 = Conv3D(filters=32, strides=(1, 1, 3), kernel_size=(3, 3, 3), activation='relu')(conv_layer2)
+        conv_layer1 = Conv3D(filters=8, strides=strides, kernel_size=(3, 3, 7), activation='relu')(input_layer)
+        conv_layer2 = Conv3D(filters=16, strides=strides, kernel_size=(3, 3, 5), activation='relu')(conv_layer1)
+        conv_layer3 = Conv3D(filters=32, strides=strides, kernel_size=(3, 3, 3), activation='relu')(conv_layer2)
         conv3d_shape = conv_layer3._keras_shape
         conv_layer3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
         conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
