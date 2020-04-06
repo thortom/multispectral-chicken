@@ -17,7 +17,7 @@ TYPE_CONTAMINANT = 3
     
 class FakeDataset:
     
-    def __init__(self, wavelengths="All", max_contaminants_per_piece=3, max_contaminant_classes=["HardPlastic", "Liner"]):
+    def __init__(self, wavelengths="All", max_contaminants_per_piece=3, max_contaminant_classes=["HardPlastic", "Liner"], center_signals=False):
         f'''FakeDataset generates a HSI built on the database located at {DATA_BASE_PATH}
         
             max_contaminants_per_piece:  The maximum number of contaminants per piece
@@ -33,6 +33,14 @@ class FakeDataset:
             self.wavelengths            = wavelengths
         self.max_contaminants_per_piece = max_contaminants_per_piece
         self.max_contaminant_classes    = max_contaminant_classes
+        
+        if center_signals:
+#             for col in self.database_wavelengths:
+#                 # Start all signals at zero at the first sampling wavelength
+#                 self.database.loc[:, col] = self.database.loc[:, col] - self.database.iloc[:, 1]
+#             for i, row in self.database.iterrows():
+#                 row[1:] = row[1:] - row[1:].mean()
+            self.database[self.database_wavelengths] = self.database[self.database_wavelengths].sub(self.database[self.database_wavelengths].mean(axis=1), axis=0)
         
     def __get_all_of_type(self, type_name):
         samples = self.database[self.database["Type"].str.contains(type_name)]
@@ -50,6 +58,8 @@ class FakeDataset:
 
         # Remove the black plastic glove
         database = database[database["Type"].str.contains("black_latex_glove") != True]
+        # Remove all mixed materials
+        database = database[database["Type"].str.contains("liner_on_") != True]
         # Here the order does matter, since some substrings used are contained in more than one groups
         rename_database_group("_fat_", "Fat")
         rename_database_group("chicken_not_as_red", "chicken_fillet_not_as_red")
@@ -156,8 +166,8 @@ class FakeDataset:
         #           Compare the output with the obvious plastic items
         
         # Add noise and blur the image
-        x = np.apply_along_axis(self.__add_noise, -1, x)
-        x = ndimage.gaussian_filter(x, sigma=(2, 2, 0), order=0) # sigma is the standard deviation for Gaussian kernel per channel
+#         x = np.apply_along_axis(self.__add_noise, -1, x)
+#         x = ndimage.gaussian_filter(x, sigma=(2, 2, 0), order=0) # sigma is the standard deviation for Gaussian kernel per channel
         
         return x, y
     
