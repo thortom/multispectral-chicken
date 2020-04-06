@@ -111,10 +111,10 @@ class FakeDataset:
                     reflectance = C/(10^absorbacne)'''
         return C / (10**data)
     
-    def __add_noise(self, column):
+    def __add_noise(self, column, noise_variance=0.04):
         # https://stackoverflow.com/questions/14058340/adding-noise-to-a-signal-in-python
         # 0.004 is the average variance for the noise in the three black latex glove measurements
-        return column + np.random.normal(0, 0.004, len(column))
+        return column + np.random.normal(0, noise_variance, len(column))
     
     def generate_image(self, base_label=None, size=64, fill_chicken=True, img=None):
         ''''Generates fake images based in the initialized FakeDataset parameters
