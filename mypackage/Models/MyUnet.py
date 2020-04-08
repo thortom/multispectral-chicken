@@ -301,12 +301,15 @@ class UNet:
 
         ## convolutional layers
         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation='relu', padding='same')(input_layer)
-        print(f"conv_layer1._keras_shape {conv_layer1._keras_shape}")
+        if batchnorm:
+            conv_layer1 = BatchNormalization()(conv_layer1)
         conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer1)
-        print(f"conv_layer2._keras_shape {conv_layer2._keras_shape}")
+        if batchnorm:
+            conv_layer2 = BatchNormalization()(conv_layer2)
         conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
+        if batchnorm:
+            conv_layer3 = BatchNormalization()(conv_layer3)
         conv3d_shape = conv_layer3._keras_shape
-        print(f"conv_layer3._keras_shape {conv_layer3._keras_shape}")
         r3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
 
         # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
