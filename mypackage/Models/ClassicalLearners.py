@@ -40,7 +40,7 @@ def logistic_regression(X_train, Y_train, X_test, Y_test, C=1e5, plot=True, metr
     
     if plot:    
         for i in range(Y_test.shape[0]):
-            plt.figure(figsize=(15, 15))
+            plt.figure(figsize=(9, 5))
             plt.subplot(1, 2, 1)
             plt.title("True Classes")
             plt.imshow(np.squeeze(Y_test[i]))

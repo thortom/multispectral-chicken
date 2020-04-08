@@ -10,7 +10,7 @@
 
 # Code from: https://github.com/gokriznastic/HybridSN
 import keras
-from keras.layers import Conv2D, Conv3D, Flatten, Dense, Reshape, BatchNormalization
+from keras.layers import Conv2D, Conv3D, Flatten, Dense, Reshape, BatchNormalization, AveragePooling3D
 from keras.layers import Dropout, Input
 from keras.models import Model
 from keras.optimizers import Adam
@@ -120,6 +120,7 @@ class UNet:
 
         X_input = self.__scale_input(self.X_train, add_dim=True)
         Y_input = self.__scale_input(self.Y_train)
+        print(f"X_input {X_input.shape}, Y_input {Y_input.shape}")
         self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, **kwargs)
 
     def retrain(self, X_train, Y_train, freeze_up_to=0, batch_size=20, epochs=10, **kwargs):
@@ -186,40 +187,136 @@ class UNet:
         x = Activation('relu')(x)
 
         return x
+    
+#     def __large_model(self, S, L, output_units, batchnorm=True, n_filters=8, dropout=0.1):
+#         ## input layer
+#         input_layer = Input((S, S, L, 1))
 
-    # TODO: Chagne the model so that the spatial dimension holds the same undtil the spectral has dropped to 8, this allows for concatenation with the upsampling
-    def __get_model(self, input_shape, output_units):
+#         ## convolutional layers
+#         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation='relu', padding='same')(input_layer)
+#         conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer1)
+#         conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
+#         conv3d_shape = conv_layer3._keras_shape
+#         conv_layer3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
+
+#         # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
+
+#         c4 = self.__conv2d_block(conv_layer3, n_filters * 8, kernel_size = 3, strides=2, batchnorm = batchnorm)
+#         # p4 = MaxPooling2D((2, 2))(c4)
+#         p4 = Dropout(dropout)(c4)
+
+#         c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
+#         # print(f"c4: {c4._keras_shape}")
+
+#         # TODO: Use pix2pix the same as I use in my standard_unet.py
+#         # Expansive Path
+#         u6 = Conv2DTranspose(n_filters * 8, (3, 3), strides = (2, 2), padding = 'same')(c5)
+#         u6 = concatenate([u6, c4])
+#         u6 = Dropout(dropout)(u6)
+#         c6 = self.__conv2d_block(u6, n_filters * 8, kernel_size = 3, batchnorm = batchnorm)
+
+#         u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides = (2, 2), padding = 'same')(c6)
+#         # u7 = concatenate([u7, conv_layer3]) # TODO: Maybe use https://keras.io/layers/pooling/ # MaxPooling3D to reduce the spectral dimension
+#         u7 = Dropout(dropout)(u7)
+#         c7 = self.__conv2d_block(u7, n_filters * 4, kernel_size = 3, batchnorm = batchnorm)
+
+#         u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides = (2, 2), padding = 'same')(c7)
+#         # u8 = concatenate([u8, conv_layer2])
+#         u8 = Dropout(dropout)(u8)
+#         c8 = self.__conv2d_block(u8, n_filters * 2, kernel_size = 3, batchnorm = batchnorm)
+
+#         u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides = (2, 2), padding = 'same')(c8)
+#         # u9 = concatenate([u9, conv_layer1])
+#         u9 = Dropout(dropout)(u9)
+#         c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size = 3, batchnorm = batchnorm)
+
+#         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
+#         model = Model(inputs=input_layer, outputs=outputs)
+#         return model
+    
+#     def __small_model(self, S, L, output_units, batchnorm=True, n_filters=8, dropout=0.1):
+#         ## input layer
+#         print((S, S, L, 1))
+#         input_layer = Input((S, S, L, 1))
+
+#         ## convolutional layers
+#         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation='relu', padding='same')(input_layer)
+#         conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer1)
+#         conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
+#         conv3d_shape = conv_layer3._keras_shape
+#         conv_layer3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
+
+#         # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
+
+#         c4 = self.__conv2d_block(conv_layer3, n_filters * 8, kernel_size = 3, strides=2, batchnorm = batchnorm)
+#         # p4 = MaxPooling2D((2, 2))(c4)
+#         p4 = Dropout(dropout)(c4)
+
+#         c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
+#         # print(f"c4: {c4._keras_shape}")
+
+#         # TODO: Use pix2pix the same as I use in my standard_unet.py
+#         # Expansive Path
+#         u6 = Conv2DTranspose(n_filters * 8, (3, 3), strides = (2, 2), padding = 'same')(c5)
+#         u6 = concatenate([u6, c4])
+#         u6 = Dropout(dropout)(u6)
+#         c6 = self.__conv2d_block(u6, n_filters * 8, kernel_size = 3, batchnorm = batchnorm)
+
+#         u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides = (2, 2), padding = 'same')(c6)
+#         # u7 = concatenate([u7, conv_layer3]) # TODO: Maybe use https://keras.io/layers/pooling/ # MaxPooling3D to reduce the spectral dimension
+#         u7 = Dropout(dropout)(u7)
+#         c7 = self.__conv2d_block(u7, n_filters * 4, kernel_size = 3, batchnorm = batchnorm)
+
+#         u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides = (2, 2), padding = 'same')(c7)
+#         # u8 = concatenate([u8, conv_layer2])
+#         u8 = Dropout(dropout)(u8)
+#         c8 = self.__conv2d_block(u8, n_filters * 2, kernel_size = 3, batchnorm = batchnorm)
+
+#         u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides = (2, 2), padding = 'same')(c8)
+#         # u9 = concatenate([u9, conv_layer1])
+#         u9 = Dropout(dropout)(u9)
+#         c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size = 3, batchnorm = batchnorm)
+
+#         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
+#         model = Model(inputs=input_layer, outputs=outputs)
+#         return model
+        
+
+    # TODO: For concatenation to the upsampling use some thing like AveragePool4D which is not available :(
+        # https://www.tensorflow.org/api_docs/python/tf/keras/layers/Average?version=nightly
+        # https://www.tensorflow.org/api_docs/python/tf/keras/layers/AveragePooling3D
+    def __get_model(self, input_shape, output_units, batchnorm=True, n_filters=8, dropout=0.1):
 
         _, windowSize, windowSize, L = input_shape
-        S = 64
-        if windowSize != S:
-            self.scale_factor = (S - windowSize) // 2 # TODO: Fix to handle oddnumbers
-
-        ########################################
-        ## The model ###########################
-
-        batchnorm = True
-        n_filters = 8
-        dropout = 0.1
-
-        ## input layer
+        if windowSize == 32:
+            S = windowSize
+#             model = self.__small_model(32, L, output_units)
+        else:
+            S = 64
+            if windowSize != S:
+                self.scale_factor = (S - windowSize) // 2 # TODO: Fix to handle oddnumbers
+#             model = self.__large_model(S, L, output_units)
+            
         input_layer = Input((S, S, L, 1))
 
         ## convolutional layers
         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation='relu', padding='same')(input_layer)
+        print(f"conv_layer1._keras_shape {conv_layer1._keras_shape}")
         conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer1)
+        print(f"conv_layer2._keras_shape {conv_layer2._keras_shape}")
         conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
         conv3d_shape = conv_layer3._keras_shape
-        conv_layer3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
+        print(f"conv_layer3._keras_shape {conv_layer3._keras_shape}")
+        r3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
 
         # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
 
-        c4 = self.__conv2d_block(conv_layer3, n_filters * 8, kernel_size = 3, strides=2, batchnorm = batchnorm)
+        c4 = self.__conv2d_block(r3, n_filters * 8, kernel_size = 3, strides=2, batchnorm = batchnorm)
         # p4 = MaxPooling2D((2, 2))(c4)
         p4 = Dropout(dropout)(c4)
 
         c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
-        # print(f"c4: {c4._keras_shape}")
+        print(f"c4: {c4._keras_shape}")
 
         # TODO: Use pix2pix the same as I use in my standard_unet.py
         # Expansive Path
@@ -230,21 +327,32 @@ class UNet:
 
         u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides = (2, 2), padding = 'same')(c6)
         # u7 = concatenate([u7, conv_layer3]) # TODO: Maybe use https://keras.io/layers/pooling/ # MaxPooling3D to reduce the spectral dimension
+        c3 = AveragePooling3D(pool_size=(1, 2, 4), padding='same', data_format='channels_first')(conv_layer3)
+        c3_shape = c3._keras_shape
+        c3 = Reshape((c3_shape[1], c3_shape[2], c3_shape[3]*c3_shape[4]))(c3)
+        u7 = concatenate([u7, c3])
         u7 = Dropout(dropout)(u7)
         c7 = self.__conv2d_block(u7, n_filters * 4, kernel_size = 3, batchnorm = batchnorm)
 
         u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides = (2, 2), padding = 'same')(c7)
-        # u8 = concatenate([u8, conv_layer2])
+        # Concat with second layer
+        c2 = AveragePooling3D(pool_size=(1, 6, 5), padding='same', data_format='channels_first')(conv_layer2)
+        c2_shape = c2._keras_shape
+        c2 = Reshape((c2_shape[1], c2_shape[2], c2_shape[3]*c2_shape[4]))(c2)
+        u8 = concatenate([u8, c2])
         u8 = Dropout(dropout)(u8)
         c8 = self.__conv2d_block(u8, n_filters * 2, kernel_size = 3, batchnorm = batchnorm)
 
         u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides = (2, 2), padding = 'same')(c8)
-        # u9 = concatenate([u9, conv_layer1])
+        # Concat with first layer
+        c1 = AveragePooling3D(pool_size=(1, 9, 8), padding='same', data_format='channels_first')(conv_layer1)
+        c1_shape = c1._keras_shape
+        c1 = Reshape((c1_shape[1], c1_shape[2], c1_shape[3]*c1_shape[4]))(c1)
+        u9 = concatenate([u9, c1])
         u9 = Dropout(dropout)(u9)
         c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size = 3, batchnorm = batchnorm)
 
         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
         model = Model(inputs=input_layer, outputs=outputs)
-        # model.summary()
 
         return model

@@ -41,6 +41,7 @@ class FakeDataset:
 #             for i, row in self.database.iterrows():
 #                 row[1:] = row[1:] - row[1:].mean()
             self.database[self.database_wavelengths] = self.database[self.database_wavelengths].sub(self.database[self.database_wavelengths].mean(axis=1), axis=0)
+            self.database[self.database_wavelengths] -= self.database[self.database_wavelengths].min().min()
         
     def __get_all_of_type(self, type_name):
         samples = self.database[self.database["Type"].str.contains(type_name)]
@@ -111,7 +112,7 @@ class FakeDataset:
                     reflectance = C/(10^absorbacne)'''
         return C / (10**data)
     
-    def __add_noise(self, column, noise_variance=0.04):
+    def __add_noise(self, column, noise_variance=0.004):
         # https://stackoverflow.com/questions/14058340/adding-noise-to-a-signal-in-python
         # 0.004 is the average variance for the noise in the three black latex glove measurements
         return column + np.random.normal(0, noise_variance, len(column))
@@ -166,12 +167,12 @@ class FakeDataset:
         #           Compare the output with the obvious plastic items
         
         # Add noise and blur the image
-#         x = np.apply_along_axis(self.__add_noise, -1, x)
-#         x = ndimage.gaussian_filter(x, sigma=(2, 2, 0), order=0) # sigma is the standard deviation for Gaussian kernel per channel
+        x = np.apply_along_axis(self.__add_noise, -1, x)
+        x = ndimage.gaussian_filter(x, sigma=(1, 1, 0), order=0) # sigma is the standard deviation for Gaussian kernel per channel
         
         return x, y
     
-    def get_images(self, numb_images):
+    def get_images(self, numb_images, size=64):
         labels_path = f"{DIR_PATH}/../../data/tomra/"
         img, labels, _ = mypackage.Dataset.load(labels_path, only_with_contaminant=True)
         
@@ -179,7 +180,7 @@ class FakeDataset:
         numb_available_labels = len(labels)
         selected_labels = np.random.choice(numb_available_labels, numb_images, replace=True)
         for i in selected_labels:
-            x, y = self.generate_image(labels[i], img=img[i])
+            x, y = self.generate_image(labels[i], size=size, img=img[i])
             X.append(x)
             Y.append(y)
         # IPython.display.clear_output(wait=True)   # TODO: Add in a progressbar/info log

@@ -272,6 +272,44 @@ class Dataset:
         for infile in glob.glob(os.path.join(dataSetFolder, "*.png")):
             print(infile)
             Dataset.reset_label_values(infile, infile, plot)
+            
+    @staticmethod
+    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=3):
+        count, n, m, k = X.shape
+        output_count = count*sample_multiplication
+        enlarged_X = np.zeros((output_count, size, size, k))
+        enlarged_Y = np.zeros((output_count, size, size, 1))
+
+        for i in range(output_count):
+            choice = np.random.choice(count)
+            x, y = Dataset.zoom_in_on_contaminant(X[choice], Y[choice], size=size, contaminant_type=contaminant_type)
+            enlarged_X[i], enlarged_Y[i] = x, y
+
+        return enlarged_X, enlarged_Y
+            
+    @staticmethod
+    def zoom_in_on_contaminant(img, label, size=64, contaminant_type=3):
+        def get_max_min(center):
+            MIN, MAX = 0, 100
+            max_val = center + size // 2
+            if max_val > MAX:
+                max_val = MAX
+            min_val = max_val - size
+            if min_val < MIN:
+                min_val = MIN
+                max_val = min_val + size
+            return min_val, max_val
+
+        indices_x, indices_y, _ = np.nonzero(label == contaminant_type)
+
+        random_center = np.random.choice(len(indices_x))
+        # random_center_y = np.random.choice(indices_y)
+        start_x, end_x = get_max_min(indices_x[random_center])
+        start_y, end_y = get_max_min(indices_y[random_center])
+
+        label = label[start_x:end_x, start_y:end_y, :].copy()
+        img = img[start_x:end_x, start_y:end_y, :].copy()
+        return img, label
 
 class StackTransform():
     def __init__(self, X, Y=None):
