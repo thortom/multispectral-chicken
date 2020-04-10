@@ -9,13 +9,13 @@
 # https://github.com/zhixuhao/unet/blob/master/model.py
 
 # Code from: https://github.com/gokriznastic/HybridSN
-import keras
-from keras.layers import Conv2D, Conv3D, Flatten, Dense, Reshape, BatchNormalization, AveragePooling3D
-from keras.layers import Dropout, Input
-from keras.models import Model
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint
-from keras.utils import np_utils
+# import keras
+from tensorflow.keras.layers import Conv2D, Conv3D, Flatten, Dense, Reshape, BatchNormalization, AveragePooling3D
+from tensorflow.keras.layers import Dropout, Input
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.utils import to_categorical
 
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
@@ -33,10 +33,10 @@ import spectral
 
 import mypackage
 
-from keras.layers import Input, BatchNormalization, Activation, Dense, Dropout
-from keras.layers.convolutional import Conv2D, Conv2DTranspose
-from keras.layers.pooling import MaxPooling2D, GlobalMaxPool2D
-from keras.layers.merge import concatenate, add
+from tensorflow.keras.layers import Input, BatchNormalization, Activation, Dense, Dropout
+from tensorflow.keras.layers import Conv2D, Conv2DTranspose
+from tensorflow.keras.layers import MaxPooling2D, GlobalMaxPool2D
+from tensorflow.keras.layers import concatenate, add
 
 class UNet:
 
@@ -56,7 +56,7 @@ class UNet:
     def __preprocess_y(self, Y):
         if Y.min() != 0:
             Y -= 1
-        return np_utils.to_categorical(Y)
+        return to_categorical(Y)
 
     def __scale_input(self, data, add_dim=False):
         if self.scale_factor > 0:
@@ -65,7 +65,7 @@ class UNet:
         elif self.scale_factor < 0:
             s = -self.scale_factor
             data = data[:, s:-s, s:-s]
-        
+
         if add_dim:
             data = data.reshape(*(data.shape), 1)
         return data
@@ -142,7 +142,7 @@ class UNet:
         # Freeze all the layers before the `fine_tune_at` layer
         for layer in self.model.layers[:freeze_up_to]:
             layer.trainable = False
-            
+
         # Then recompile the model
         #    and then train the model
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
@@ -187,7 +187,7 @@ class UNet:
         x = Activation('relu')(x)
 
         return x
-    
+
 #     def __large_model(self, S, L, output_units, batchnorm=True, n_filters=8, dropout=0.1):
 #         ## input layer
 #         input_layer = Input((S, S, L, 1))
@@ -233,7 +233,7 @@ class UNet:
 #         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
 #         model = Model(inputs=input_layer, outputs=outputs)
 #         return model
-    
+
 #     def __small_model(self, S, L, output_units, batchnorm=True, n_filters=8, dropout=0.1):
 #         ## input layer
 #         print((S, S, L, 1))
@@ -280,7 +280,7 @@ class UNet:
 #         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
 #         model = Model(inputs=input_layer, outputs=outputs)
 #         return model
-        
+
 
     # TODO: For concatenation to the upsampling use some thing like AveragePool4D which is not available :(
         # https://www.tensorflow.org/api_docs/python/tf/keras/layers/Average?version=nightly
@@ -296,7 +296,7 @@ class UNet:
             if windowSize != S:
                 self.scale_factor = (S - windowSize) // 2 # TODO: Fix to handle oddnumbers
 #             model = self.__large_model(S, L, output_units)
-            
+
         input_layer = Input((S, S, L, 1))
 
         ## convolutional layers
@@ -309,7 +309,7 @@ class UNet:
         conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
         if batchnorm:
             conv_layer3 = BatchNormalization()(conv_layer3)
-        conv3d_shape = conv_layer3._keras_shape
+        conv3d_shape = conv_layer3.shape
         r3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
 
         # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
@@ -319,7 +319,7 @@ class UNet:
         p4 = Dropout(dropout)(c4)
 
         c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
-        print(f"c4: {c4._keras_shape}")
+        print(f"c4: {c4.shape}")
 
         # TODO: Use pix2pix the same as I use in my standard_unet.py
         # Expansive Path
@@ -331,7 +331,7 @@ class UNet:
         u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides = (2, 2), padding = 'same')(c6)
         # u7 = concatenate([u7, conv_layer3]) # TODO: Maybe use https://keras.io/layers/pooling/ # MaxPooling3D to reduce the spectral dimension
         c3 = AveragePooling3D(pool_size=(1, 2, 4), padding='same', data_format='channels_first')(conv_layer3)
-        c3_shape = c3._keras_shape
+        c3_shape = c3.shape
         c3 = Reshape((c3_shape[1], c3_shape[2], c3_shape[3]*c3_shape[4]))(c3)
         u7 = concatenate([u7, c3])
         u7 = Dropout(dropout)(u7)
@@ -340,7 +340,7 @@ class UNet:
         u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides = (2, 2), padding = 'same')(c7)
         # Concat with second layer
         c2 = AveragePooling3D(pool_size=(1, 6, 5), padding='same', data_format='channels_first')(conv_layer2)
-        c2_shape = c2._keras_shape
+        c2_shape = c2.shape
         c2 = Reshape((c2_shape[1], c2_shape[2], c2_shape[3]*c2_shape[4]))(c2)
         u8 = concatenate([u8, c2])
         u8 = Dropout(dropout)(u8)
@@ -349,7 +349,7 @@ class UNet:
         u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides = (2, 2), padding = 'same')(c8)
         # Concat with first layer
         c1 = AveragePooling3D(pool_size=(1, 9, 8), padding='same', data_format='channels_first')(conv_layer1)
-        c1_shape = c1._keras_shape
+        c1_shape = c1.shape
         c1 = Reshape((c1_shape[1], c1_shape[2], c1_shape[3]*c1_shape[4]))(c1)
         u9 = concatenate([u9, c1])
         u9 = Dropout(dropout)(u9)
