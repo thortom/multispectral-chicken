@@ -13,7 +13,7 @@
 from tensorflow.keras.layers import Conv2D, Conv3D, Flatten, Dense, Reshape, BatchNormalization, AveragePooling3D
 from tensorflow.keras.layers import Dropout, Input
 from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, Adadelta
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
 
@@ -46,7 +46,7 @@ class UNet:
         self.scale_factor     = 0
         self.saved_mode_name  = saved_mode_name
         self.loss_function    = loss_func
-        self.optimizer        = Adam(lr=0.001, decay=1e-06)
+        self.optimizer        = Adadelta(learning_rate=1.0, rho=0.95) # Adam(lr=0.001, decay=1e-06)
 
         self.X_train = X_train
         self.Y_train = self.__preprocess_y(Y_train) # Changes the data to categorical binary matrix

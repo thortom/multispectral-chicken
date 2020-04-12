@@ -289,8 +289,9 @@ class Dataset:
             
     @staticmethod
     def zoom_in_on_contaminant(img, label, size=64, contaminant_type=3):
+        MIN, MAX = 0, 100
+        
         def get_max_min(center):
-            MIN, MAX = 0, 100
             max_val = center + size // 2
             if max_val > MAX:
                 max_val = MAX
@@ -302,10 +303,18 @@ class Dataset:
 
         indices_x, indices_y, _ = np.nonzero(label == contaminant_type)
 
-        random_center = np.random.choice(len(indices_x))
-        # random_center_y = np.random.choice(indices_y)
-        start_x, end_x = get_max_min(indices_x[random_center])
-        start_y, end_y = get_max_min(indices_y[random_center])
+        if len(indices_x) != 0:
+            random_center = np.random.choice(len(indices_x))
+            start_x, end_x = get_max_min(indices_x[random_center])
+            start_y, end_y = get_max_min(indices_y[random_center])
+        else:
+            # Select a random center with exponentially declining probability from the center pixels
+            p = np.exp(-3.4551-np.linspace(0, 1, num=50))
+            missing = 1 - np.sum(p) # The probability needs to sum to 1
+            p[0] = p[0] + missing
+            p = list(p[::-1]/2) + list(p/2)
+            start_x, end_x = get_max_min(np.random.choice(MAX, p=p))
+            start_y, end_y = get_max_min(np.random.choice(MAX, p=p))
 
         label = label[start_x:end_x, start_y:end_y, :].copy()
         img = img[start_x:end_x, start_y:end_y, :].copy()
