@@ -142,23 +142,24 @@ class Dataset:
         return np.array(X), Y, info
     
     @staticmethod
-    def load_files(file_list, dataset_folder, only_one_contaminant_type=True):
-        info = file_list
-
+    def load_files(file_list, dataset_folder, with_labels=True, only_one_contaminant_type=True):
         Y = []
         X = []
         for file_name in file_list:
-            Y.append(Dataset.read_image(f"{dataset_folder}/labels/{file_name}.png"))
+            if with_labels:
+                Y.append(Dataset.read_image(f"{dataset_folder}/labels/{file_name}.png"))
             X.append(Dataset.read_image(f"{dataset_folder}/{file_name}.tif"))
-        Y = np.array(Y)
         X = np.array(X)
+        if not with_labels:
+            return X
+        Y = np.array(Y)
         
         if only_one_contaminant_type:
             # Ensuring only one contaminant type
             Dataset.__only_one_contaminant(Y)
         Y += 1 # Have the indexes not as zero-indexed
         
-        return X, Y, info
+        return X, Y
     
     @staticmethod
     def scale(X_test, X_train, scaler='GlobalStandardization'):
@@ -286,39 +287,47 @@ class Dataset:
             enlarged_X[i], enlarged_Y[i] = x, y
 
         return enlarged_X, enlarged_Y
+    
+    @staticmethod
+    def get_max_min(center, size=32):
+        MIN, MAX = 0, 100
+        max_val = center + size // 2
+        if max_val > MAX:
+            max_val = MAX
+        min_val = max_val - size
+        if min_val < MIN:
+            min_val = MIN
+            max_val = min_val + size
+        return min_val, max_val
             
     @staticmethod
-    def zoom_in_on_contaminant(img, label, size=64, contaminant_type=3):
+    def zoom_in_on_contaminant(img, label, size=32, contaminant_type=3):
         MIN, MAX = 0, 100
         
-        def get_max_min(center):
-            max_val = center + size // 2
-            if max_val > MAX:
-                max_val = MAX
-            min_val = max_val - size
-            if min_val < MIN:
-                min_val = MIN
-                max_val = min_val + size
-            return min_val, max_val
-
         indices_x, indices_y, _ = np.nonzero(label == contaminant_type)
 
         if len(indices_x) != 0:
             random_center = np.random.choice(len(indices_x))
-            start_x, end_x = get_max_min(indices_x[random_center])
-            start_y, end_y = get_max_min(indices_y[random_center])
+            start_x, end_x = Dataset.get_max_min(indices_x[random_center], size)
+            start_y, end_y = Dataset.get_max_min(indices_y[random_center], size)
         else:
             # Select a random center with exponentially declining probability from the center pixels
             p = np.exp(-3.4551-np.linspace(0, 1, num=50))
             missing = 1 - np.sum(p) # The probability needs to sum to 1
             p[0] = p[0] + missing
             p = list(p[::-1]/2) + list(p/2)
-            start_x, end_x = get_max_min(np.random.choice(MAX, p=p))
-            start_y, end_y = get_max_min(np.random.choice(MAX, p=p))
+            start_x, end_x = Dataset.get_max_min(np.random.choice(MAX, p=p), size)
+            start_y, end_y = Dataset.get_max_min(np.random.choice(MAX, p=p), size)
 
         label = label[start_x:end_x, start_y:end_y, :].copy()
         img = img[start_x:end_x, start_y:end_y, :].copy()
         return img, label
+    
+    @staticmethod
+    def zoom_in_on_center(img, x_center=50, y_center=50, size=32):
+        start_x, end_x = Dataset.get_max_min(x_center, size)
+        start_y, end_y = Dataset.get_max_min(y_center, size)
+        return img[start_x:end_x, start_y:end_y, :]
 
 class StackTransform():
     def __init__(self, X, Y=None):

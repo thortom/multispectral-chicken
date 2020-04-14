@@ -9,7 +9,7 @@
 # https://github.com/zhixuhao/unet/blob/master/model.py
 
 # Code from: https://github.com/gokriznastic/HybridSN
-# import keras
+import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Conv3D, Flatten, Dense, Reshape, BatchNormalization, AveragePooling3D
 from tensorflow.keras.layers import Dropout, Input
 from tensorflow.keras.models import Model
@@ -109,13 +109,15 @@ class UNet:
             mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
             plt.title("Predicted labels")
             plt.show()
+            
+        return y_pred_test
 
     def train(self, batch_size=20, epochs=10, **kwargs):
         # compiling the model
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
 
         # checkpoint
-        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor='accuracy', verbose=1, save_best_only=True, mode='max')
+        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor='val_accuracy', verbose=1, save_best_only=True, mode='max')
         callbacks_list = [checkpoint]
 
         X_input = self.__scale_input(self.X_train, add_dim=True)
@@ -170,190 +172,99 @@ class UNet:
         plt.show()
 
     # Code from: https://towardsdatascience.com/understanding-semantic-segmentation-with-unet-6be4f42d4b47
-    def __conv2d_block(self, input_tensor, n_filters, kernel_size = 3, strides=1, batchnorm = True):
+    def __conv2d_block(self, input_tensor, n_filters, kernel_size = 3, strides=1, batchnorm=True, activation='relu'):
         """Function to add 2 convolutional layers with the parameters passed to it"""
         # first layer
         x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size), strides=strides,\
                   kernel_initializer = 'he_normal', padding = 'same')(input_tensor)
         if batchnorm:
             x = BatchNormalization()(x)
-        x = Activation('relu')(x)
+        x = Activation(activation)(x)
 
         # second layer
         x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size), strides=strides,\
                   kernel_initializer = 'he_normal', padding = 'same')(input_tensor)
         if batchnorm:
             x = BatchNormalization()(x)
-        x = Activation('relu')(x)
+        x = Activation(activation)(x)
 
         return x
+    
+    def __pool_to_3D(self, layer4D, pooling):
+        layer3D = AveragePooling3D(pool_size=pooling, padding='same', data_format='channels_first')(layer4D)
+        layer3D_shape = layer3D.shape
+        layer3D = Reshape((layer3D_shape[1], layer3D_shape[2], layer3D_shape[3]*layer3D_shape[4]))(layer3D)
+        return layer3D
 
-#     def __large_model(self, S, L, output_units, batchnorm=True, n_filters=8, dropout=0.1):
-#         ## input layer
-#         input_layer = Input((S, S, L, 1))
-
-#         ## convolutional layers
-#         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation='relu', padding='same')(input_layer)
-#         conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer1)
-#         conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
-#         conv3d_shape = conv_layer3._keras_shape
-#         conv_layer3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
-
-#         # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
-
-#         c4 = self.__conv2d_block(conv_layer3, n_filters * 8, kernel_size = 3, strides=2, batchnorm = batchnorm)
-#         # p4 = MaxPooling2D((2, 2))(c4)
-#         p4 = Dropout(dropout)(c4)
-
-#         c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
-#         # print(f"c4: {c4._keras_shape}")
-
-#         # TODO: Use pix2pix the same as I use in my standard_unet.py
-#         # Expansive Path
-#         u6 = Conv2DTranspose(n_filters * 8, (3, 3), strides = (2, 2), padding = 'same')(c5)
-#         u6 = concatenate([u6, c4])
-#         u6 = Dropout(dropout)(u6)
-#         c6 = self.__conv2d_block(u6, n_filters * 8, kernel_size = 3, batchnorm = batchnorm)
-
-#         u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides = (2, 2), padding = 'same')(c6)
-#         # u7 = concatenate([u7, conv_layer3]) # TODO: Maybe use https://keras.io/layers/pooling/ # MaxPooling3D to reduce the spectral dimension
-#         u7 = Dropout(dropout)(u7)
-#         c7 = self.__conv2d_block(u7, n_filters * 4, kernel_size = 3, batchnorm = batchnorm)
-
-#         u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides = (2, 2), padding = 'same')(c7)
-#         # u8 = concatenate([u8, conv_layer2])
-#         u8 = Dropout(dropout)(u8)
-#         c8 = self.__conv2d_block(u8, n_filters * 2, kernel_size = 3, batchnorm = batchnorm)
-
-#         u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides = (2, 2), padding = 'same')(c8)
-#         # u9 = concatenate([u9, conv_layer1])
-#         u9 = Dropout(dropout)(u9)
-#         c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size = 3, batchnorm = batchnorm)
-
-#         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
-#         model = Model(inputs=input_layer, outputs=outputs)
-#         return model
-
-#     def __small_model(self, S, L, output_units, batchnorm=True, n_filters=8, dropout=0.1):
-#         ## input layer
-#         print((S, S, L, 1))
-#         input_layer = Input((S, S, L, 1))
-
-#         ## convolutional layers
-#         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation='relu', padding='same')(input_layer)
-#         conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer1)
-#         conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
-#         conv3d_shape = conv_layer3._keras_shape
-#         conv_layer3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
-
-#         # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
-
-#         c4 = self.__conv2d_block(conv_layer3, n_filters * 8, kernel_size = 3, strides=2, batchnorm = batchnorm)
-#         # p4 = MaxPooling2D((2, 2))(c4)
-#         p4 = Dropout(dropout)(c4)
-
-#         c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
-#         # print(f"c4: {c4._keras_shape}")
-
-#         # TODO: Use pix2pix the same as I use in my standard_unet.py
-#         # Expansive Path
-#         u6 = Conv2DTranspose(n_filters * 8, (3, 3), strides = (2, 2), padding = 'same')(c5)
-#         u6 = concatenate([u6, c4])
-#         u6 = Dropout(dropout)(u6)
-#         c6 = self.__conv2d_block(u6, n_filters * 8, kernel_size = 3, batchnorm = batchnorm)
-
-#         u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides = (2, 2), padding = 'same')(c6)
-#         # u7 = concatenate([u7, conv_layer3]) # TODO: Maybe use https://keras.io/layers/pooling/ # MaxPooling3D to reduce the spectral dimension
-#         u7 = Dropout(dropout)(u7)
-#         c7 = self.__conv2d_block(u7, n_filters * 4, kernel_size = 3, batchnorm = batchnorm)
-
-#         u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides = (2, 2), padding = 'same')(c7)
-#         # u8 = concatenate([u8, conv_layer2])
-#         u8 = Dropout(dropout)(u8)
-#         c8 = self.__conv2d_block(u8, n_filters * 2, kernel_size = 3, batchnorm = batchnorm)
-
-#         u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides = (2, 2), padding = 'same')(c8)
-#         # u9 = concatenate([u9, conv_layer1])
-#         u9 = Dropout(dropout)(u9)
-#         c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size = 3, batchnorm = batchnorm)
-
-#         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
-#         model = Model(inputs=input_layer, outputs=outputs)
-#         return model
-
-
-    # TODO: For concatenation to the upsampling use some thing like AveragePool4D which is not available :(
-        # https://www.tensorflow.org/api_docs/python/tf/keras/layers/Average?version=nightly
-        # https://www.tensorflow.org/api_docs/python/tf/keras/layers/AveragePooling3D
+    # TODO: Test out increasing the dropout to 0.5. Evaluate the result on unseen data (/un-labeled)
     def __get_model(self, input_shape, output_units, batchnorm=True, n_filters=8, dropout=0.1):
 
         _, windowSize, windowSize, L = input_shape
         if windowSize == 32:
             S = windowSize
-#             model = self.__small_model(32, L, output_units)
+            # model = self.__small_model(32, L, output_units)
         else:
             S = 64
             if windowSize != S:
                 self.scale_factor = (S - windowSize) // 2 # TODO: Fix to handle oddnumbers
-#             model = self.__large_model(S, L, output_units)
+            # model = self.__large_model(S, L, output_units)
 
         input_layer = Input((S, S, L, 1))
+        
+        # Arech @ https://www.reddit.com/r/MachineLearning/comments/4znzvo/what_are_the_advantages_of_relu_over_the/
+        #    https://arxiv.org/abs/1505.00853
+        leaky_relu = lambda x: tf.nn.leaky_relu(x, alpha=1/5.5)
+        activation = leaky_relu # Was 'relu'
 
         ## convolutional layers
-        conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation='relu', padding='same')(input_layer)
+        conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation=activation, padding='same')(input_layer)
         if batchnorm:
             conv_layer1 = BatchNormalization()(conv_layer1)
-        conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer1)
+        conv_layer1 = Dropout(dropout)(conv_layer1)
+        conv_layer2 = Conv3D(n_filters * 2, kernel_size=(3, 3, 5), strides=(2, 2, 3), activation=activation, padding='same')(conv_layer1)
         if batchnorm:
             conv_layer2 = BatchNormalization()(conv_layer2)
-        conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation='relu', padding='same')(conv_layer2)
+        conv_layer2 = Dropout(dropout)(conv_layer2)
+        conv_layer3 = Conv3D(n_filters * 4, kernel_size=(3, 3, 3), strides=(2, 2, 3), activation=activation, padding='same')(conv_layer2)
         if batchnorm:
             conv_layer3 = BatchNormalization()(conv_layer3)
+        conv_layer3 = Dropout(dropout)(conv_layer3)
         conv3d_shape = conv_layer3.shape
         r3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
 
-        # conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu')(conv_layer3)
-
-        c4 = self.__conv2d_block(r3, n_filters * 8, kernel_size = 3, strides=2, batchnorm = batchnorm)
+        c4 = self.__conv2d_block(r3, n_filters * 8, kernel_size = 3, strides=2, batchnorm=batchnorm, activation=activation)
         # p4 = MaxPooling2D((2, 2))(c4)
         p4 = Dropout(dropout)(c4)
 
-        c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm = batchnorm)
-        print(f"c4: {c4.shape}")
+        c5 = self.__conv2d_block(p4, n_filters = n_filters * 16, kernel_size = 3, strides=2, batchnorm=batchnorm, activation=activation)
 
         # TODO: Use pix2pix the same as I use in my standard_unet.py
         # Expansive Path
-        u6 = Conv2DTranspose(n_filters * 8, (3, 3), strides = (2, 2), padding = 'same')(c5)
+        u6 = Conv2DTranspose(n_filters * 8, (3, 3), strides=(2, 2), padding='same')(c5)
         u6 = concatenate([u6, c4])
         u6 = Dropout(dropout)(u6)
-        c6 = self.__conv2d_block(u6, n_filters * 8, kernel_size = 3, batchnorm = batchnorm)
+        c6 = self.__conv2d_block(u6, n_filters * 8, kernel_size=3, batchnorm=batchnorm, activation=activation)
 
-        u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides = (2, 2), padding = 'same')(c6)
-        # u7 = concatenate([u7, conv_layer3]) # TODO: Maybe use https://keras.io/layers/pooling/ # MaxPooling3D to reduce the spectral dimension
-        c3 = AveragePooling3D(pool_size=(1, 2, 4), padding='same', data_format='channels_first')(conv_layer3)
-        c3_shape = c3.shape
-        c3 = Reshape((c3_shape[1], c3_shape[2], c3_shape[3]*c3_shape[4]))(c3)
+        u7 = Conv2DTranspose(n_filters * 4, (3, 3), strides=(2, 2), padding='same')(c6)
+        # Concat with the third layer
+        c3 = self.__pool_to_3D(conv_layer3, pooling=(1, 2, 4))
         u7 = concatenate([u7, c3])
         u7 = Dropout(dropout)(u7)
-        c7 = self.__conv2d_block(u7, n_filters * 4, kernel_size = 3, batchnorm = batchnorm)
+        c7 = self.__conv2d_block(u7, n_filters * 4, kernel_size=3, batchnorm=batchnorm, activation=activation)
 
-        u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides = (2, 2), padding = 'same')(c7)
-        # Concat with second layer
-        c2 = AveragePooling3D(pool_size=(1, 6, 5), padding='same', data_format='channels_first')(conv_layer2)
-        c2_shape = c2.shape
-        c2 = Reshape((c2_shape[1], c2_shape[2], c2_shape[3]*c2_shape[4]))(c2)
+        u8 = Conv2DTranspose(n_filters * 2, (3, 3), strides=(2, 2), padding='same')(c7)
+        # Concat with the second layer
+        c2 = self.__pool_to_3D(conv_layer2, pooling=(1, 6, 5))
         u8 = concatenate([u8, c2])
         u8 = Dropout(dropout)(u8)
-        c8 = self.__conv2d_block(u8, n_filters * 2, kernel_size = 3, batchnorm = batchnorm)
+        c8 = self.__conv2d_block(u8, n_filters * 2, kernel_size=3, batchnorm=batchnorm, activation=activation)
 
-        u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides = (2, 2), padding = 'same')(c8)
-        # Concat with first layer
-        c1 = AveragePooling3D(pool_size=(1, 9, 8), padding='same', data_format='channels_first')(conv_layer1)
-        c1_shape = c1.shape
-        c1 = Reshape((c1_shape[1], c1_shape[2], c1_shape[3]*c1_shape[4]))(c1)
+        u9 = Conv2DTranspose(n_filters * 1, (3, 3), strides=(2, 2), padding='same')(c8)
+        # Concat with the first layer
+        c1 = self.__pool_to_3D(conv_layer1, pooling=(1, 9, 8))
         u9 = concatenate([u9, c1])
         u9 = Dropout(dropout)(u9)
-        c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size = 3, batchnorm = batchnorm)
+        c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size=3, batchnorm=batchnorm, activation=activation)
 
         outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
         model = Model(inputs=input_layer, outputs=outputs)
