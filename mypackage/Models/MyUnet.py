@@ -112,16 +112,18 @@ class UNet:
             
         return y_pred_test
 
-    def train(self, batch_size=20, epochs=10, **kwargs):
+    def train(self, batch_size=20, epochs=10, monitor='val_accuracy', metrics=['accuracy'], **kwargs):
         # compiling the model
-        self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
+        self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=metrics)
 
         # checkpoint
-        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor='val_accuracy', verbose=1, save_best_only=True, mode='max')
+        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor=monitor, verbose=1, save_best_only=True, mode='max')
         callbacks_list = [checkpoint]
 
         X_input = self.__scale_input(self.X_train, add_dim=True)
         Y_input = self.__scale_input(self.Y_train)
+        X_input = tf.convert_to_tensor(X_input, dtype=tf.float32)
+        Y_input = tf.convert_to_tensor(Y_input, dtype=tf.float32)
         print(f"X_input {X_input.shape}, Y_input {Y_input.shape}")
         self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, **kwargs)
 
@@ -174,14 +176,7 @@ class UNet:
     # Code from: https://towardsdatascience.com/understanding-semantic-segmentation-with-unet-6be4f42d4b47
     def __conv2d_block(self, input_tensor, n_filters, kernel_size = 3, strides=1, batchnorm=True, activation='relu'):
         """Function to add 2 convolutional layers with the parameters passed to it"""
-        # first layer
-        x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size), strides=strides,\
-                  kernel_initializer = 'he_normal', padding = 'same')(input_tensor)
-        if batchnorm:
-            x = BatchNormalization()(x)
-        x = Activation(activation)(x)
-
-        # second layer
+        # One convolution layer
         x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size), strides=strides,\
                   kernel_initializer = 'he_normal', padding = 'same')(input_tensor)
         if batchnorm:
