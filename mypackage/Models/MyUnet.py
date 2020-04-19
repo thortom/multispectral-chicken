@@ -9,6 +9,7 @@
 # https://github.com/zhixuhao/unet/blob/master/model.py
 
 # Code from: https://github.com/gokriznastic/HybridSN
+import IPython
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Conv3D, Flatten, Dense, Reshape, BatchNormalization, AveragePooling3D
 from tensorflow.keras.layers import Dropout, Input
@@ -79,6 +80,11 @@ class UNet:
 
     def summary(self):
         return self.model.summary()
+    
+    def predict_only_one(self, X_input, Y_labels):
+        i = np.random.choice(len(X_input))
+        self.predict(X_input[i:i+1], Y_labels=Y_labels[i:i+1])
+        return i
 
     def predict(self, X_input, Y_labels=None):
         X_input = self.__scale_input(X_input, add_dim=True)
@@ -112,12 +118,12 @@ class UNet:
             
         return y_pred_test
 
-    def train(self, batch_size=20, epochs=10, monitor='val_accuracy', metrics=['accuracy'], **kwargs):
+    def train(self, batch_size=20, epochs=10, monitor='val_accuracy', mode='max', metrics=['accuracy'], clear_output=False, **kwargs):
         # compiling the model
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=metrics)
 
         # checkpoint
-        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor=monitor, verbose=1, save_best_only=True, mode='max')
+        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor=monitor, verbose=1, save_best_only=True, mode=mode)
         callbacks_list = [checkpoint]
 
         X_input = self.__scale_input(self.X_train, add_dim=True)
@@ -126,13 +132,19 @@ class UNet:
         Y_input = tf.convert_to_tensor(Y_input, dtype=tf.float32)
         print(f"X_input {X_input.shape}, Y_input {Y_input.shape}")
         self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, **kwargs)
+        
+        if clear_output:
+            IPython.display.clear_output(wait=True)
 
-    def retrain(self, X_train, Y_train, freeze_up_to=0, batch_size=20, epochs=10, **kwargs):
+    def retrain(self, X_train, Y_train, freeze_up_to=0, batch_size=20, epochs=10, loss=None, **kwargs):
         '''Re-trains the model layers.
                 X_train = None        # If None then re-uses initialized training data
                 Y_train = None        # If None then re-uses initialized training data
                 freeze_upto = 0       # Re-trains on all the layers
         '''
+        if loss is None:
+            loss = self.loss_function
+            
         X_input = self.__scale_input(X_train, add_dim=True)
         Y_input = self.__scale_input(self.__preprocess_y(Y_train))
 
@@ -146,11 +158,17 @@ class UNet:
         # Freeze all the layers before the `fine_tune_at` layer
         for layer in self.model.layers[:freeze_up_to]:
             layer.trainable = False
+            
+        # checkpoint
+        monitor='val_loss'
+        mode='min'
+        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor=monitor, verbose=1, save_best_only=True, mode=mode)
+        callbacks_list = [checkpoint]
 
         # Then recompile the model
         #    and then train the model
-        self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
-        self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=None, **kwargs)
+        self.model.compile(loss=loss, optimizer=self.optimizer, metrics=['accuracy'])
+        self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, **kwargs)
 
     def plot_training_results(self):
         # TODO: Do a side by side subplot of these two

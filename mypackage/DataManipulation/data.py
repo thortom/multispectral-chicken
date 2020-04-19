@@ -126,7 +126,7 @@ class Dataset:
         if only_one_contaminant_type:
             # Ensuring only one contaminant type
             Dataset.__only_one_contaminant(Y)
-        Y += 1 # Have the indexes not as zero-indexed
+#         Y += 1 # Have the indexes not as zero-indexed
         
         if load_rest:
             ###############################
@@ -157,7 +157,7 @@ class Dataset:
         if only_one_contaminant_type:
             # Ensuring only one contaminant type
             Dataset.__only_one_contaminant(Y)
-        Y += 1 # Have the indexes not as zero-indexed
+#         Y += 1 # Have the indexes not as zero-indexed
         
         return X, Y
     
