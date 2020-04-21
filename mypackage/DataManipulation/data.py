@@ -59,7 +59,7 @@ class Dataset:
         plt.legend(handles=patches)
 
     @staticmethod
-    def reset_label_values(imageName, newImageName, plot=False):
+    def reset_label_values(imageName, newImageName, plot=False, weak_labels=False):
         '''This method assumes that the background is 65535 and that no label has a value less than the number of labeled classes
             Chicken Labels (Done with GIMP, saved as png [Compression=0, 16bpc Gray]):
                 - Fat - Blue (0, 0, 50)
@@ -78,15 +78,27 @@ class Dataset:
         y[y == 1637]  = 2 #  1637 Is Fat (0, 0, 50) in 16bpc Gray
         for idx, value in enumerate(np.unique(y)):
             y[y == value] = idx
+
+        if weak_labels:
+            # This assumes the labels 0 and 1
+            y[y == 1] = 2
         image = Image.fromarray(y)
 
         if plot:
+            plt.figure()
             img = plt.imshow(y)
             Dataset.__add_legend_to_image(y, img)
             plt.show()
             
         # Save the image after the plot to allow for cancelation
         image.save(newImageName)
+
+    @staticmethod
+    def reset_all_label_values_in_folder(dataSetFolder, plot=True, weak_labels=False):
+
+        for infile in glob.glob(os.path.join(dataSetFolder, "*.png")):
+            print(infile)
+            Dataset.reset_label_values(infile, infile, plot, weak_labels)
 
     @staticmethod
     def __list_files_by_file_type(path, types):
@@ -266,16 +278,9 @@ class Dataset:
             X_train, X_test, Y_train, Y_test = X, None, Y, None
         
         return X_train, X_test, Y_train, Y_test
-    
-    @staticmethod
-    def reset_all_label_values_in_folder(dataSetFolder, plot=True):
-        
-        for infile in glob.glob(os.path.join(dataSetFolder, "*.png")):
-            print(infile)
-            Dataset.reset_label_values(infile, infile, plot)
             
     @staticmethod
-    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=3):
+    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=2):
         count, n, m, k = X.shape
         output_count = count*sample_multiplication
         enlarged_X = np.zeros((output_count, size, size, k))
@@ -301,7 +306,7 @@ class Dataset:
         return min_val, max_val
             
     @staticmethod
-    def zoom_in_on_contaminant(img, label, size=32, contaminant_type=3):
+    def zoom_in_on_contaminant(img, label, size=32, contaminant_type=2):
         MIN, MAX = 0, 100
         
         indices_x, indices_y, _ = np.nonzero(label == contaminant_type)
@@ -358,7 +363,8 @@ class StackTransform():
             
 
 if __name__ == "__main__":
-    Dataset.reset_all_label_values_in_folder("/home/thor/HI/Lokaverkefni/Code/data/tomra/labels/tmp")
+    # Dataset.reset_all_label_values_in_folder("/home/thor/HI/Lokaverkefni/Code/data/tomra/labels/tmp")
+    Dataset.reset_all_label_values_in_folder("/home/thor/HI/Lokaverkefni/Code/data/tomra_weak_labeling/labels/tmp", weak_labels=True)
 #     X, Y, info = Dataset.load("../data/tomra") #, channels_to_use=[1,2,6])
 #     print(len(X), len(Y))
 #     print(X[0].shape, Y[0].shape)

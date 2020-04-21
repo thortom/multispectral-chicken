@@ -15,3 +15,5 @@ label_layer = gimp.Layer(img, "Label", width, height, RGB_IMAGE, opacity, NORMAL
 
 img.add_layer(label_layer, 0)
 pdb.gimp_edit_fill(label_layer, BACKGROUND_FILL)
+
+# https://developer.ibm.com/articles/os-autogimp/

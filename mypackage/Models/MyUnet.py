@@ -279,7 +279,8 @@ class UNet:
         u9 = Dropout(dropout)(u9)
         c9 = self.__conv2d_block(u9, n_filters * 1, kernel_size=3, batchnorm=batchnorm, activation=activation)
 
-        outputs = Conv2D(output_units, (1, 1), activation='sigmoid')(c9)
+        outputs = Conv2D(output_units, (1, 1), activation='softmax')(c9)
+        # Changed from sigmoid to softmax based on these: https://stackoverflow.com/questions/57253841/from-logits-true-and-from-logits-false-get-different-training-result-for-tf-loss - https://www.quora.com/Why-is-it-better-to-use-Softmax-function-than-sigmoid-function
         model = Model(inputs=input_layer, outputs=outputs)
 
         return model
