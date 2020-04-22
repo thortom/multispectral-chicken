@@ -48,71 +48,71 @@ class HybridSN:
         self.model = self.__get_model()
     
     def __preprocess(self, X, Y):
-        X = X.astype('float16')
-        Y = Y.astype('int8')
-        if Y.min() != 0:
-            Y -= 1
+#         X = X.astype('float16')
+#         Y = Y.astype('int8')
+#         if Y.min() != 0:
+#             Y -= 1
         
-        count, n, m, k = X.shape
-        if np.sqrt(count) % 1 != 0: # TODO: Remove the need for this
-            raise ValueError(f"Number of training samples needs to be a cubic number. Please reduce the samples down to {np.sqrt(count) // 1}")
-        window_length = int(np.sqrt(count))
+#         count, n, m, k = X.shape
+#         if np.sqrt(count) % 1 != 0: # TODO: Remove the need for this
+#             raise ValueError(f"Number of training samples needs to be a cubic number. Please reduce the samples down to {np.sqrt(count) // 1}")
+#         window_length = int(np.sqrt(count))
             
-        print(f"count, n, m, k = {count, n, m, k}")
-        X = self.__make_one_large_image(X, window_length)
-        Y = self.__make_one_large_image(Y, window_length)
-        print(f"X.shape = {X.shape}")
+#         print(f"count, n, m, k = {count, n, m, k}")
+#         X = self.__make_one_large_image(X, window_length)
+#         Y = self.__make_one_large_image(Y, window_length)
+#         print(f"X.shape = {X.shape}")
 
-        print(f"X.shape = {X.shape}, Y.shape = {Y.shape}")
+#         print(f"X.shape = {X.shape}, Y.shape = {Y.shape}")
         
         return X, Y
     
-    def __make_one_large_image(self, images, window_length):
-        full_image = []
-        for j in range(window_length):
-            one_column = np.concatenate([images[i] for i in range(window_length)])
-            if full_image == []:
-                full_image = one_column
-            else:
-                full_image = np.concatenate([full_image, one_column], axis=1)
+#     def __make_one_large_image(self, images, window_length):
+#         full_image = []
+#         for j in range(window_length):
+#             one_column = np.concatenate([images[i] for i in range(window_length)])
+#             if full_image == []:
+#                 full_image = one_column
+#             else:
+#                 full_image = np.concatenate([full_image, one_column], axis=1)
             
-        return full_image
+#         return full_image
     
     def __get_selectable_pixels(self, n, m, margin):
         selectable_pixels = [(r, c) for r in range(margin, n - margin) for c in range(margin, m - margin)]
         return selectable_pixels
     
-    # TODO: Implement over sampling 
-    def __data_generator(self, data, label, batch_size=1000, aug=None, in_order=False): # batch_size=2000 was to large to fit in memory with 208 channels
+    def __data_generator(self, data, label, aug=None, in_order=False): # batch_size=2000 was to large to fit in memory with 208 channels
         '''Selects randomly batch_size number of pixels as targes and there corresponding patches'''
         # https://www.pyimagesearch.com/2018/12/24/how-to-use-keras-fit-and-fit_generator-a-hands-on-tutorial/
         # https://www.tensorflow.org/guide/data#consuming_python_generators
         # https://www.tensorflow.org/api_docs/python/tf/data/Dataset#from_generator
         # https://www.tensorflow.org/guide/data#consuming_python_generators
-        n, m, k = data.shape
+        img_count, n, m, k = data.shape
         margin = int((self.windowSize - 1) / 2)
         selectable_pixels = self.__get_selectable_pixels(n, m, margin)
         
+        # loop indefinitely
         while True:
             X, Y = [], []
             patchesData = np.zeros((batch_size, self.windowSize, self.windowSize, k))
             patchesLabels = np.zeros((batch_size))
-            for _ in range(batch_size): # TODO: Select randomly from all possible pixels, batch_size number of pixels with out replacement
-                r, c = selectable_pixels[np.random.choice(len(selectable_pixels), replace=False)]
-                patch = data[r - margin:r + margin + 1, c - margin:c + margin + 1]
-                X.append(patch)
-                Y.append(label[r, c]) # The original code had an error here. It was label[r-margin, c-margin]
-                
-            Y = self.label_binarizer.transform(np.array(Y))
-            if self.output_units == 2:
-                Y = np.hstack((1 - Y, Y)) # This ensures the same format from the binarizer as with output_units > 2
-            X = np.array(X)
-            X = X.reshape(*(X.shape), 1)
-            
-            if aug is not None:
-                (X, Y) = next(aug.flow(X, labels, batch_size=batch_size))
-            
-            yield (X, Y)
+            for i in np.random.choice(img_count, img_count, replace=False):
+                for r, c in selectable_pixels:
+                    patch = data[i, r - margin:r + margin + 1, c - margin:c + margin + 1]
+                    X.append(patch)
+                    Y.append(label[i, r, c]) # The original code had an error here. It was label[r-margin, c-margin]
+
+                Y = self.label_binarizer.transform(np.array(Y))
+                if self.output_units == 2:
+                    Y = np.hstack((1 - Y, Y)) # This ensures the same format from the binarizer as with output_units > 2
+                X = np.array(X)
+                X = X.reshape(*(X.shape), 1)
+
+                if aug is not None:
+                    (X, Y) = next(aug.flow(X, labels, batch_size=batch_size))
+
+                yield (X, Y)   # The batch_size is fixed to windowSize^2
 
     def __scale_output(self, data):
         if self.scale_factor > 0:
@@ -134,20 +134,18 @@ class HybridSN:
         self.model.load_weights(self.saved_mode_name)
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
 
-        y_pred_test = np.zeros((count, n, m))
+        y_pred = np.zeros((count, n, m))
         for i in range(count):
             margin = int((self.windowSize - 1) / 2)
             selectable_pixels = self.__get_selectable_pixels(n, m, margin)
-#             y_pred_test = np.zeros((n, m))
             # TODO: For each (r, c) do the prediction and collect the predictions to a reconstructed image
             for r, c in selectable_pixels:
                 patch = X_input[i:i+1, r - margin:r + margin + 1, c - margin:c + margin + 1]
 
                 prediction = self.model.predict(patch)
-                y_pred_test[i, r, c] = np.argmax(prediction, axis=-1)
+                y_pred[i, r, c] = np.argmax(prediction, axis=-1)
 
-        y_pred_test += 1
-        classification = classification_report(Y_input.flatten(), y_pred_test.flatten())
+        classification = classification_report(Y_input.flatten(), y_pred.flatten())
         print(classification)
 
         # Plot results
@@ -158,12 +156,12 @@ class HybridSN:
         plt.title("True label")
 
         plt.subplot(122)
-        img = plt.imshow(y_pred_test[selected])
-        mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
+        img = plt.imshow(y_pred[selected])
+        mypackage.Dataset._Dataset__add_legend_to_image(y_pred[selected], img)
         plt.title("Predicted labels")
         plt.show()
 
-    def train(self, batch_size=1000, epochs=2, **kwargs):
+    def train(self, epochs=2, **kwargs):
         # compiling the model
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
 
@@ -171,13 +169,13 @@ class HybridSN:
         checkpoint = ModelCheckpoint(self.saved_mode_name, monitor='accuracy', verbose=1, save_best_only=True, mode='max')
         callbacks_list = [checkpoint]
         
-        gen_train = self.__data_generator(data=self.X_train, label=self.Y_train, batch_size=batch_size)
-        gen_test  = self.__data_generator(data=self.X_test,  label=self.Y_test,  batch_size=batch_size)
+        gen_train = self.__data_generator(data=self.X_train, label=self.Y_train)
+        gen_test  = self.__data_generator(data=self.X_test,  label=self.Y_test)
         # See augmentation added to the data in NotMyCode/keras-fit-generator
         
-        n, m, k = self.X_train.shape
-        steps_per_epoch = np.ceil(n * m / batch_size)     # Worked with BS=1000 and steps=2
-        val_steps_per_epoch = np.ceil(self.X_train.shape[0]**2 / batch_size)
+        count, n, m, k = self.X_train.shape
+        steps_per_epoch = count
+        val_steps_per_epoch = len(self.X_test)
 
         self.history = self.model.fit_generator(gen_train, steps_per_epoch=steps_per_epoch, validation_data=gen_test, validation_steps=val_steps_per_epoch, epochs=epochs, callbacks=callbacks_list, **kwargs)
 
@@ -205,7 +203,7 @@ class HybridSN:
         # Then recompile the model
         #    and then train the model
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
-        self.history = self.model.fit_generator(gen, batch_size=batch_size, epochs=epochs, callbacks=None, validation_split=0.1, **kwargs)
+        self.history = self.model.fit_generator(gen, steps_per_epoch=len(X_train), epochs=epochs, callbacks=None, validation_split=0.1, **kwargs)
 
     def plot_training_results(self):
         # TODO: Do a side by side subplot of these two

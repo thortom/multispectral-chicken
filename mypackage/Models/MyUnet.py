@@ -32,12 +32,13 @@ import scipy.io as sio
 import os
 import spectral
 
-import mypackage
-
 from tensorflow.keras.layers import Input, BatchNormalization, Activation, Dense, Dropout
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose
 from tensorflow.keras.layers import MaxPooling2D, GlobalMaxPool2D
 from tensorflow.keras.layers import concatenate, add
+
+import mypackage
+timer = mypackage.utils.Timer()
 
 class UNet:
 
@@ -93,7 +94,9 @@ class UNet:
         self.model.load_weights(self.saved_mode_name)
 #         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
 
+        timer.start()
         y_pred_test = self.model.predict(X_input)
+        timer.stop()
         y_pred_test = np.argmax(y_pred_test, axis=-1)
 
         if type(Y_labels) is np.ndarray: # if Not None:

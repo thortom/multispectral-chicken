@@ -318,9 +318,9 @@ class Dataset:
         else:
             # Select a random center with exponentially declining probability from the center pixels
             p = np.exp(-3.4551-np.linspace(0, 1, num=50))
-            missing = 1 - np.sum(p) # The probability needs to sum to 1
+            missing = 1 - np.sum(p)         # The probability needs to sum to 1
             p[0] = p[0] + missing
-            p = list(p[::-1]/2) + list(p/2)
+            p = list(p[::-1]/2) + list(p/2) # The list is mirrored from the center
             start_x, end_x = Dataset.get_max_min(np.random.choice(MAX, p=p), size)
             start_y, end_y = Dataset.get_max_min(np.random.choice(MAX, p=p), size)
 

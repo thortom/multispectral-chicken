@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, precision_score, recall_score
 
-def logistic_regression(X_train, Y_train, X_test, Y_test, C=1e5, plot=True, metrics=True, max_iter=1000):
+def logistic_regression(X_train, Y_train, X_test, Y_test, C=1e5, plot=True, metrics=True, max_iter=10000):
     train = mypackage.StackTransform(X_train, Y_train)
 
-    logreg = LogisticRegression(C=1e5, max_iter=max_iter)
+    logreg = LogisticRegression(C=C, max_iter=max_iter)
 
     # Create an instance of Logistic Regression Classifier and fit the data.
     logreg.fit(train.X_stack(), train.Y_stack().ravel())
