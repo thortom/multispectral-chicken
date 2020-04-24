@@ -30,7 +30,7 @@ from numba import jit
 
 class HybridSN:
 
-    def __init__(self, X_train, Y_train, X_test, Y_test, saved_mode_name="HybridSN-best-model.hdf5"):
+    def __init__(self, X_train, Y_train, X_test, Y_test, saved_mode_name="latest_HybridSN.hdf5"):
         self.history          = None
         self.scale_factor     = 0
         self.saved_mode_name  = saved_mode_name
@@ -92,27 +92,33 @@ class HybridSN:
         margin = int((self.windowSize - 1) / 2)
         selectable_pixels = self.__get_selectable_pixels(n, m, margin)
         
-        # loop indefinitely
+        image_order = []
+        # Loop indefinitely
         while True:
+            if image_order == []:
+                image_order = list(np.random.choice(img_count, img_count, replace=False))
+                # print("New order")
+                # print(image_order)
+            i = image_order.pop()
             X, Y = [], []
-            patchesData = np.zeros((batch_size, self.windowSize, self.windowSize, k))
-            patchesLabels = np.zeros((batch_size))
-            for i in np.random.choice(img_count, img_count, replace=False):
-                for r, c in selectable_pixels:
-                    patch = data[i, r - margin:r + margin + 1, c - margin:c + margin + 1]
-                    X.append(patch)
-                    Y.append(label[i, r, c]) # The original code had an error here. It was label[r-margin, c-margin]
 
-                Y = self.label_binarizer.transform(np.array(Y))
-                if self.output_units == 2:
-                    Y = np.hstack((1 - Y, Y)) # This ensures the same format from the binarizer as with output_units > 2
-                X = np.array(X)
-                X = X.reshape(*(X.shape), 1)
+            for r, c in selectable_pixels:
+                patch = data[i, r - margin:r + margin + 1, c - margin:c + margin + 1]
+                X.append(patch)
+                Y.append(label[i, r, c]) # The original code had an error here. It was label[r-margin, c-margin]
 
-                if aug is not None:
-                    (X, Y) = next(aug.flow(X, labels, batch_size=batch_size))
+            Y = self.label_binarizer.transform(np.array(Y))
+            if self.output_units == 2:
+                Y = np.hstack((1 - Y, Y)) # This ensures the same format from the binarizer as with output_units > 2
+            X = np.array(X)
+            X = X.reshape(*(X.shape), 1)
 
-                yield (X, Y)   # The batch_size is fixed to windowSize^2
+            if aug is not None:
+                (X, Y) = next(aug.flow(X, labels, batch_size=batch_size))
+
+            # print(f"X: {X.shape}")
+
+            yield (X, Y)   # The batch_size is fixed to windowSize^2
 
     def __scale_output(self, data):
         if self.scale_factor > 0:
@@ -145,6 +151,8 @@ class HybridSN:
                 prediction = self.model.predict(patch)
                 y_pred[i, r, c] = np.argmax(prediction, axis=-1)
 
+        Y_input = Y_input.copy()[:, margin:-margin, margin:-margin]
+        y_pred  = y_pred[:, margin:-margin, margin:-margin]
         classification = classification_report(Y_input.flatten(), y_pred.flatten())
         print(classification)
 
@@ -177,7 +185,8 @@ class HybridSN:
         steps_per_epoch = count
         val_steps_per_epoch = len(self.X_test)
 
-        self.history = self.model.fit_generator(gen_train, steps_per_epoch=steps_per_epoch, validation_data=gen_test, validation_steps=val_steps_per_epoch, epochs=epochs, callbacks=callbacks_list, **kwargs)
+        self.history = self.model.fit_generator(gen_train, steps_per_epoch=steps_per_epoch, validation_data=gen_test, validation_steps=val_steps_per_epoch, max_queue_size=1, workers=1, epochs=epochs, callbacks=callbacks_list, **kwargs)
+        # https://keras.io/models/sequential/#fit_generator
 
     def retrain(self, X_train, Y_train, freeze_up_to=0, batch_size=20, epochs=10, validation_split=0.1, **kwargs):
         '''Re-trains the model layers.

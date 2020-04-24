@@ -43,7 +43,7 @@ timer = mypackage.utils.Timer()
 class UNet:
 
     # TODO: Test out loss_func="dice_loss"
-    def __init__(self, X_train, Y_train, loss_func="categorical_crossentropy", saved_mode_name="best-model.hdf5"):
+    def __init__(self, X_train, Y_train, loss_func="categorical_crossentropy", saved_mode_name="latest_spectral_unet.hdf5", dropout=0.1):
         self.history          = None
         self.scale_factor     = 0
         self.saved_mode_name  = saved_mode_name
@@ -53,7 +53,7 @@ class UNet:
         self.X_train = X_train
         self.Y_train = self.__preprocess_y(Y_train) # Changes the data to categorical binary matrix
 
-        self.model = self.__get_model(input_shape=X_train.shape, output_units=self.Y_train.shape[-1])
+        self.model = self.__get_model(input_shape=X_train.shape, output_units=self.Y_train.shape[-1], dropout=dropout)
 
     def __preprocess_y(self, Y):
         if Y.min() != 0:
@@ -87,7 +87,7 @@ class UNet:
         self.predict(X_input[i:i+1], Y_labels=Y_labels[i:i+1])
         return i
 
-    def predict(self, X_input, Y_labels=None):
+    def predict(self, X_input, Y_labels=None, plot=True):
         X_input = self.__scale_input(X_input, add_dim=True)
 
         # load best weights
@@ -106,35 +106,36 @@ class UNet:
             classification = classification_report(np.argmax(Y_input, axis=-1).flatten(), y_pred_test.flatten())
             print(classification)
 
-            # Plot results
-            plt.figure(figsize=(9, 5))
-            plt.subplot(121)
-            selected = np.random.choice(len(Y_input))
-            plt.imshow(np.argmax(Y_input, axis=-1)[selected])
-            plt.title("True label")
+            if plot:
+                # Plot results
+                plt.figure(figsize=(9, 5))
+                plt.subplot(121)
+                selected = np.random.choice(len(Y_input))
+                plt.imshow(np.argmax(Y_input, axis=-1)[selected])
+                plt.title("True label")
 
-            plt.subplot(122)
-            img = plt.imshow(y_pred_test[selected])
-            mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
-            plt.title("Predicted labels")
-            plt.show()
+                plt.subplot(122)
+                img = plt.imshow(y_pred_test[selected])
+                mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
+                plt.title("Predicted labels")
+                plt.show()
             
         return y_pred_test
 
-    def train(self, batch_size=20, epochs=10, monitor='val_accuracy', mode='max', metrics=['accuracy'], clear_output=False, **kwargs):
+    def train(self, batch_size=20, epochs=10, monitor='val_accuracy', mode='max', metrics=['accuracy'], clear_output=False, verbose=1, **kwargs):
         # compiling the model
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=metrics)
 
         # checkpoint
-        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor=monitor, verbose=1, save_best_only=True, mode=mode)
+        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor=monitor, verbose=verbose, save_best_only=True, mode=mode)
         callbacks_list = [checkpoint]
 
         X_input = self.__scale_input(self.X_train, add_dim=True)
         Y_input = self.__scale_input(self.Y_train)
         X_input = tf.convert_to_tensor(X_input, dtype=tf.float32)
         Y_input = tf.convert_to_tensor(Y_input, dtype=tf.float32)
-        print(f"X_input {X_input.shape}, Y_input {Y_input.shape}")
-        self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, **kwargs)
+        # print(f"X_input {X_input.shape}, Y_input {Y_input.shape}")
+        self.history = self.model.fit(x=X_input, y=Y_input, batch_size=batch_size, epochs=epochs, callbacks=callbacks_list, verbose=verbose, **kwargs)
         
         if clear_output:
             IPython.display.clear_output(wait=True)
