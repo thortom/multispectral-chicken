@@ -43,7 +43,7 @@ timer = mypackage.utils.Timer()
 class UNet:
 
     # TODO: Test out loss_func="dice_loss"
-    def __init__(self, X_train, Y_train, loss_func="categorical_crossentropy", saved_mode_name="latest_spectral_unet.hdf5", dropout=0.1):
+    def __init__(self, X_train, Y_train, loss_func="categorical_crossentropy", saved_mode_name="latest_spectral_unet.hdf5", batchnorm=True, dropout=0.1):
         self.history          = None
         self.scale_factor     = 0
         self.saved_mode_name  = saved_mode_name
@@ -53,7 +53,7 @@ class UNet:
         self.X_train = X_train
         self.Y_train = self.__preprocess_y(Y_train) # Changes the data to categorical binary matrix
 
-        self.model = self.__get_model(input_shape=X_train.shape, output_units=self.Y_train.shape[-1], dropout=dropout)
+        self.model = self.__get_model(input_shape=X_train.shape, output_units=self.Y_train.shape[-1], batchnorm=batchnorm, dropout=dropout)
 
     def __preprocess_y(self, Y):
         if Y.min() != 0:
@@ -231,7 +231,7 @@ class UNet:
         # Arech @ https://www.reddit.com/r/MachineLearning/comments/4znzvo/what_are_the_advantages_of_relu_over_the/
         #    https://arxiv.org/abs/1505.00853
         leaky_relu = lambda x: tf.nn.leaky_relu(x, alpha=1/5.5)
-        activation = 'relu'
+        activation = leaky_relu # Was 'relu'
 
         ## convolutional layers
         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation=activation, padding='same')(input_layer)
