@@ -231,7 +231,7 @@ class UNet:
         # Arech @ https://www.reddit.com/r/MachineLearning/comments/4znzvo/what_are_the_advantages_of_relu_over_the/
         #    https://arxiv.org/abs/1505.00853
         leaky_relu = lambda x: tf.nn.leaky_relu(x, alpha=1/5.5)
-        activation = leaky_relu # Was 'relu'
+        activation = 'relu'
 
         ## convolutional layers
         conv_layer1 = Conv3D(n_filters * 1, kernel_size=(3, 3, 7), strides=(1, 1, 3), activation=activation, padding='same')(input_layer)
