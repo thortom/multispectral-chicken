@@ -11,8 +11,26 @@ from scipy.signal import savgol_filter
 
 class Dataset:
     TOMRA_WAVELENGTHS = np.array([928, 932, 935, 939, 942, 946, 950, 953, 957, 960, 964, 968, 971, 975, 978, 982, 986, 989, 993, 997, 1000, 1004, 1007, 1011, 1015, 1018, 1022, 1025, 1029, 1033, 1036, 1040, 1043, 1047, 1051, 1054, 1058, 1061, 1065, 1069, 1072, 1076, 1079, 1083, 1087, 1090, 1094, 1097, 1101, 1105, 1108, 1112, 1115, 1119, 1123, 1126, 1130, 1134, 1137, 1141, 1144, 1148, 1152, 1155, 1159, 1162, 1166, 1170, 1173, 1177, 1180, 1184, 1188, 1191, 1195, 1198, 1202, 1206, 1209, 1213, 1216, 1220, 1224, 1227, 1231, 1234, 1238, 1242, 1245, 1249, 1252, 1256, 1260, 1263, 1267, 1271, 1274, 1278, 1281, 1285, 1289, 1292, 1296, 1299, 1303, 1307, 1310, 1314, 1317, 1321, 1325, 1328, 1332, 1335, 1339, 1343, 1346, 1350, 1353, 1357, 1361, 1364, 1368, 1371, 1375, 1379, 1382, 1386, 1390, 1393, 1397, 1400, 1404, 1408, 1411, 1415, 1418, 1422, 1426, 1429, 1433, 1436, 1440, 1444, 1447, 1451, 1454, 1458, 1462, 1465, 1469, 1472, 1476, 1480, 1483, 1487, 1490, 1494, 1498, 1501, 1505, 1508, 1512, 1516, 1519, 1523, 1527, 1530, 1534, 1537, 1541, 1545, 1548, 1552, 1555, 1559, 1563, 1566, 1570, 1573, 1577, 1581, 1584, 1588, 1591, 1595, 1599, 1602, 1606, 1609, 1613, 1617, 1620, 1624, 1627, 1631, 1635, 1638, 1642, 1645, 1649, 1653, 1656, 1660, 1664, 1667, 1671, 1674])
-    # The three plastic images
+    # The three plastic images # TODO: Delete this list
     TOMRA_OBVIOUS_PLASTICS = ["20200213_120044_FM_fillet_repeat_sample_B_32", "20200213_120111_FM_fillet_repeat_sample_B_33", "20200213_120158_FM_fillet_repeat_sample_B_34", "20200213_120308_FM_fillet_repeat_sample_B_36", "20200213_120339_FM_fillet_repeat_sample_B_37", "20200213_120359_FM_fillet_repeat_sample_B_38"]
+
+    # All labeled images that I am quite sure of
+    TOMRA_CONFIDENT_PLASTICS = []
+
+    # The 10 layer stacking on the fillet
+    TOMRA_FILLET_LAYERS = ["20200213_113826_fillet_sample30", "20200213_113854_fillet_sample31", "20200213_113925_fillet_sample32", "20200213_113949_fillet_sample33", "20200213_114007_fillet_sample34", "20200213_114025_fillet_sample35", "20200213_114052_fillet_sample36", "20200213_114111_fillet_sample37", "20200213_114129_fillet_sample38", "20200213_114148_fillet_sample39"]
+
+    # All labeled images of the 10 layer stacking
+    TOMRA_ALL_STACKED_LAYERS = TOMRA_FILLET_LAYERS + ["20200213_114347_fillet_sample41", "20200213_114414_fillet_sample42", "20200213_114437_fillet_sample43", "20200213_114502_fillet_sample44", "20200213_114523_fillet_sample45", "20200213_114552_fillet_sample46", "20200213_114611_fillet_sample47", "20200213_114630_fillet_sample48", "20200213_114648_fillet_sample49", "20200213_114807_fillet_sample50", "20200213_114857_skinside_sample_B_20", "20200213_114922_skinside_sample_B_21", "20200213_114942_skinside_sample_B_22", "20200213_115010_skinside_sample_B_23", "20200213_115030_skinside_sample_B_24", "20200213_115234_skinside_sample_B_28"]
+
+    # All labeled plastic sheets
+    TOMRA_ALL_SHEETS = TOMRA_ALL_STACKED_LAYERS + []
+
+    # All hard plastics
+    TOMRA_HARD_PLASTICS = TOMRA_OBVIOUS_PLASTICS + []
+
+    # Just images with dark plastics
+    TOMRA_WITH_DARK_PLASTIC = []
 
     @staticmethod
     def tiff_to_np(img, channels_to_use=[], channel_index_last=True):
@@ -281,7 +299,7 @@ class Dataset:
         return X_train, X_test, Y_train, Y_test
             
     @staticmethod
-    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=2):
+    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=2, zoom_with_noise=False):
         count, n, m, k = X.shape
         output_count = count*sample_multiplication
         enlarged_X = np.zeros((output_count, size, size, k))
@@ -290,7 +308,7 @@ class Dataset:
         for i in range(output_count):
             choice = np.random.choice(count)
             # TODO: Here return one image from each contaminant group. See https://stackoverflow.com/questions/46737409/finding-connected-components-in-a-pixel-array
-            x, y = Dataset.zoom_in_on_contaminant(X[choice], Y[choice], size=size, contaminant_type=contaminant_type)
+            x, y = Dataset.zoom_in_on_contaminant(X[choice], Y[choice], size=size, contaminant_type=contaminant_type, zoom_with_noise=0)
             enlarged_X[i], enlarged_Y[i] = x, y
 
         return enlarged_X, enlarged_Y
@@ -308,15 +326,16 @@ class Dataset:
         return min_val, max_val
             
     @staticmethod
-    def zoom_in_on_contaminant(img, label, size=32, contaminant_type=2):
+    def zoom_in_on_contaminant(img, label, size=32, contaminant_type=2, zoom_with_noise=0):
         MIN, MAX = 0, 100
         
         indices_x, indices_y, _ = np.nonzero(label == contaminant_type)
 
         if len(indices_x) != 0:
+            noise = lambda : 0 if (np.random.rand() > (1-zoom_with_noise)) else int(((np.random.rand() - 0.5) * (MAX - MIN)))
             random_center = np.random.choice(len(indices_x))
-            start_x, end_x = Dataset.get_max_min(indices_x[random_center], size)
-            start_y, end_y = Dataset.get_max_min(indices_y[random_center], size)
+            start_x, end_x = Dataset.get_max_min(indices_x[random_center] + noise(), size)
+            start_y, end_y = Dataset.get_max_min(indices_y[random_center] + noise(), size)
         else:
             # Select a random center with exponentially declining probability from the center pixels
             p = np.exp(-3.4551-np.linspace(0, 1, num=50))

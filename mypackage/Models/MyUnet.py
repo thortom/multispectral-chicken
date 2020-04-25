@@ -87,7 +87,7 @@ class UNet:
         self.predict(X_input[i:i+1], Y_labels=Y_labels[i:i+1])
         return i
 
-    def predict(self, X_input, Y_labels=None, plot=True):
+    def predict(self, X_input, Y_labels=None, plot=True, return_heat_map=False):
         X_input = self.__scale_input(X_input, add_dim=True)
 
         # load best weights
@@ -95,9 +95,9 @@ class UNet:
 #         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
 
         timer.start()
-        y_pred_test = self.model.predict(X_input)
+        y_pred_orig = self.model.predict(X_input)
         timer.stop()
-        y_pred_test = np.argmax(y_pred_test, axis=-1)
+        y_pred_test = np.argmax(y_pred_orig, axis=-1)
 
         if type(Y_labels) is np.ndarray: # if Not None:
             Y_input = self.__scale_input(self.__preprocess_y(Y_labels))
@@ -119,7 +119,9 @@ class UNet:
                 mypackage.Dataset._Dataset__add_legend_to_image(y_pred_test[selected], img)
                 plt.title("Predicted labels")
                 plt.show()
-            
+                
+        if return_heat_map:
+            y_pred_test = (y_pred_test, y_pred_orig)
         return y_pred_test
 
     def train(self, batch_size=20, epochs=10, monitor='val_accuracy', mode='max', metrics=['accuracy'], clear_output=False, verbose=1, **kwargs):
