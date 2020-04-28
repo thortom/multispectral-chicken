@@ -137,6 +137,8 @@ class HybridSN:
         mypackage.Dataset._Dataset__add_legend_to_image(y_pred[selected], img)
         plt.title("Predicted labels")
         plt.show()
+        
+        return y_pred
 
     def train(self, epochs=2, **kwargs):
         # compiling the model

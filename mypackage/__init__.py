@@ -1,5 +1,6 @@
 # __init__.py
 
+from .utils import count_false_positive
 from .utils import Timer
 from .DataManipulation.data import Dataset
 from .DataManipulation.data import StackTransform
