@@ -42,41 +42,10 @@ class HybridSN:
         self.label_binarizer  = LabelBinarizer()
         self.label_binarizer.fit(np.arange(self.output_units))
             
-        self.X_train, self.Y_train = self.__preprocess(X_train, Y_train) # Changes the data to patches and labels to patch-categorical binary matrix
-        self.X_test,  self.Y_test  = self.__preprocess(X_test, Y_test)
+        self.X_train, self.Y_train = X_train, Y_train
+        self.X_test,  self.Y_test  = X_test, Y_test
 
         self.model = self.__get_model()
-    
-    def __preprocess(self, X, Y):
-#         X = X.astype('float16')
-#         Y = Y.astype('int8')
-#         if Y.min() != 0:
-#             Y -= 1
-        
-#         count, n, m, k = X.shape
-#         if np.sqrt(count) % 1 != 0: # TODO: Remove the need for this
-#             raise ValueError(f"Number of training samples needs to be a cubic number. Please reduce the samples down to {np.sqrt(count) // 1}")
-#         window_length = int(np.sqrt(count))
-            
-#         print(f"count, n, m, k = {count, n, m, k}")
-#         X = self.__make_one_large_image(X, window_length)
-#         Y = self.__make_one_large_image(Y, window_length)
-#         print(f"X.shape = {X.shape}")
-
-#         print(f"X.shape = {X.shape}, Y.shape = {Y.shape}")
-        
-        return X, Y
-    
-#     def __make_one_large_image(self, images, window_length):
-#         full_image = []
-#         for j in range(window_length):
-#             one_column = np.concatenate([images[i] for i in range(window_length)])
-#             if full_image == []:
-#                 full_image = one_column
-#             else:
-#                 full_image = np.concatenate([full_image, one_column], axis=1)
-            
-#         return full_image
     
     def __get_selectable_pixels(self, n, m, margin):
         selectable_pixels = [(r, c) for r in range(margin, n - margin) for c in range(margin, m - margin)]

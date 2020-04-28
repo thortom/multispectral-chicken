@@ -1,35 +1,36 @@
+import tensorflow as tf
 import tensorflow.keras.backend as K
 
-# Similar code here: https://analysiscenter.github.io/radio/_modules/radio/models/keras/losses.html      
-#          and here: https://tensorlayer.readthedocs.io/en/latest/_modules/tensorlayer/cost.html
-# Code from: https://github.com/keras-team/keras/issues/9395
-# Ref: salehi17, "Twersky loss function for image segmentation using 2D FCDN"
-# -> the score is computed for each class separately and then summed
-# alpha=beta=0.5 : dice coefficient
-# alpha=beta=1   : tanimoto coefficient (also known as jaccard)
-# alpha+beta=1   : produces set of F*-scores
-# implemented by E. Moebel, 06/04/18
-def tversky_loss(y_true, y_pred):
-    alpha = 0.5
-    beta  = 0.5
+# # Similar code here: https://analysiscenter.github.io/radio/_modules/radio/models/keras/losses.html      
+# #          and here: https://tensorlayer.readthedocs.io/en/latest/_modules/tensorlayer/cost.html
+# # Code from: https://github.com/keras-team/keras/issues/9395
+# # Ref: salehi17, "Twersky loss function for image segmentation using 2D FCDN"
+# # -> the score is computed for each class separately and then summed
+# # alpha=beta=0.5 : dice coefficient
+# # alpha=beta=1   : tanimoto coefficient (also known as jaccard)
+# # alpha+beta=1   : produces set of F*-scores
+# # implemented by E. Moebel, 06/04/18
+# def tversky_loss(y_true, y_pred):
+#     alpha = 0.5
+#     beta  = 0.5
     
-    ones = K.ones(K.shape(y_true))
-    p0 = y_pred      # probability that voxels are class i
-    p1 = ones-y_pred # probability that voxels are not class i
-    g0 = y_true
-    g1 = ones-y_true
+#     ones = K.ones(K.shape(y_true))
+#     p0 = y_pred      # probability that voxels are class i
+#     p1 = ones-y_pred # probability that voxels are not class i
+#     g0 = y_true
+#     g1 = ones-y_true
     
-    num = K.sum(p0*g0, (0,1,2))
-    den = num + alpha*K.sum(p0*g1,(0,1,2)) + beta*K.sum(p1*g0,(0,1,2))
+#     num = K.sum(p0*g0, (0,1,2))
+#     den = num + alpha*K.sum(p0*g1,(0,1,2)) + beta*K.sum(p1*g0,(0,1,2))
     
-    T = K.sum(num/den) # when summing over classes, T has dynamic range [0 Ncl]
+#     T = K.sum(num/den) # when summing over classes, T has dynamic range [0 Ncl]
     
-    Ncl = K.cast(K.shape(y_true)[-1], 'float32')
-    return Ncl - T
+#     Ncl = K.cast(K.shape(y_true)[-1], 'float32')
+#     return Ncl - T
 
 # Binary Twersky loss
 # From: https://analysiscenter.github.io/radio/_modules/radio/models/keras/losses.html
-def tversky_loss(y_true, y_pred, alpha=0.3, beta=0.7, smooth=1e-10):
+def tversky_loss(y_true, y_pred, alpha=0.5, beta=0.5, smooth=1e-10, only_contaminant=False):
     """ Tversky loss function.
 
     Parameters
@@ -50,14 +51,22 @@ def tversky_loss(y_true, y_pred, alpha=0.3, beta=0.7, smooth=1e-10):
     keras tensor
         tensor containing tversky loss.
     """
+    def join_classes(y):
+        # The expected input contains the labels {0: 'Belt', 1: 'Chicken', 2: 'Contaminant'}
+        if only_contaminant: # Ignores all except contaminants. That is 'Contaminant' becomes 1, 'Not Contaminant' becomes 0
+            return y[...,2:]
+        else:                # This ignores the background. This is enough to classify all well.
+            # Does this make sense?... It does at least work rather well
+            return y[...,1:] # Here the 'Chicken' becomes 0 and 'Contaminant' becomes 1
     
-    tf.print(K.shape(y_true))
-    y_true = K.flatten(y_true)
-    y_pred = K.flatten(y_pred)
+    y_true = K.flatten(join_classes(y_true)) # Flatten binary-one-hot-encoding to binary array
+    y_pred = K.flatten(join_classes(y_pred))
     truepos = K.sum(y_true * y_pred)
     fp_and_fn = alpha * K.sum(y_pred * (1 - y_true)) + beta * K.sum((1 - y_pred) * y_true)
     answer = (truepos + smooth) / ((truepos + smooth) + fp_and_fn)
-    return -answer
+    # tf.print(y_pred)
+    
+    return 1 - answer
 
 # Focal Loss
 # From: https://www.dlology.com/blog/multi-class-classification-with-focal-loss-for-imbalanced-datasets/

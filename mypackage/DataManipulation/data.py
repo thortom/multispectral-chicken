@@ -297,9 +297,18 @@ class Dataset:
             X_train, X_test, Y_train, Y_test = X, None, Y, None
         
         return X_train, X_test, Y_train, Y_test
+    
+    @staticmethod
+    def random_flip(x, y, prob=0.5, axis='|'):
+        if (np.random.rand() <= prob):
+            if   axis == '|':
+                return np.fliplr(x), np.fliplr(y)
+            elif axis == '-':
+                return np.flipud(x), np.flipud(y)
+        return x, y
             
     @staticmethod
-    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=2, zoom_with_noise=False):
+    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=2, zoom_with_noise=False, flip=True):
         count, n, m, k = X.shape
         output_count = count*sample_multiplication
         enlarged_X = np.zeros((output_count, size, size, k))
@@ -309,6 +318,10 @@ class Dataset:
             choice = np.random.choice(count)
             # TODO: Here return one image from each contaminant group. See https://stackoverflow.com/questions/46737409/finding-connected-components-in-a-pixel-array
             x, y = Dataset.zoom_in_on_contaminant(X[choice], Y[choice], size=size, contaminant_type=contaminant_type, zoom_with_noise=0)
+            if flip:
+                x, y = Dataset.random_flip(x, y, axis='|')
+                x, y = Dataset.random_flip(x, y, axis='-')
+                
             enlarged_X[i], enlarged_Y[i] = x, y
 
         return enlarged_X, enlarged_Y
