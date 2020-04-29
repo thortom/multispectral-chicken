@@ -1,6 +1,9 @@
 import time
 import numpy as np
 from scipy.ndimage import measurements
+import matplotlib.pyplot as plt
+
+import mypackage
 
 class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""
@@ -49,3 +52,24 @@ def count_false_positive(Y_hat, Y_true, contaminant_numb=2, min_numb_pixels=0):
         for i in range(len(Y_true)):
             fp_count += one_img(np.squeeze(Y_hat[i]), Y_true[i])
     return fp_count
+
+def report_count_false_positive(Y_hat, Y_true):
+    fp_count = count_false_positive(Y_hat, Y_true)
+    print(f"Fasle positive blobs {fp_count}.")
+    print(f"Fasle positive blobs per image {fp_count/len(Y_true):.4f}")
+    
+def plot_labeled_images(Y_hat, Y_true, plot_all=False):
+    contaminant_numb = 2
+    for i in range(len(Y_true)):
+        if plot_all or (contaminant_numb in Y_true[i]):
+            plt.figure(figsize=(9, 6))
+            plt.subplot(121)
+            img = plt.imshow(np.squeeze(Y_hat[i]))
+            mypackage.Dataset._Dataset__add_legend_to_image(Y_hat[i], img)
+            plt.title("Predicted labels")
+            plt.subplot(122)
+            img = plt.imshow(np.squeeze(Y_true[i]))
+            mypackage.Dataset._Dataset__add_legend_to_image(Y_true[i], img)
+            plt.title("True labels")
+            plt.show()
+            

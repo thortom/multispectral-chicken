@@ -5,48 +5,41 @@ import IPython
 import joblib
 import matplotlib.pyplot as plt
 from sklearn import svm
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
-timer = mypackage.utils.Timer()
+timer = mypackage.Timer()
 
-class SVM:
-    def __init__(self, X_train, Y_train, saved_mode_name="latest_svm_model.sav"):
+class Learner():
+    def __init__(self, X_train, Y_train, saved_mode_name):
         self.saved_mode_name  = saved_mode_name
         self.X_train          = X_train
         self.Y_train          = Y_train
-        self.svc_classifier   = None
+        self.classifier       = None
         
     def train(self):
-        train = mypackage.StackTransform(self.X_train, self.Y_train)
-
-        self.svc_classifier = svm.SVC(C=1, kernel='rbf', decision_function_shape='ovr')
-        timer.start()
-        self.svc_classifier.fit(train.X_stack(), train.Y_stack().ravel())
-        timer.stop()
-
-        self.save_model()
+        raise NotImplementedError
         
     def save_model(self):
         # save the model to disk
-        joblib.dump(self.svc_classifier, self.saved_mode_name)
+        joblib.dump(self.classifier, self.saved_mode_name)
         
     def load_model(self):
         # load the model from disk
-        self.svc_classifier = joblib.load(self.saved_mode_name)
+        self.classifier = joblib.load(self.saved_mode_name)
     
     def predict(self, X, Y=None, plot=True):
         test = mypackage.StackTransform(X, Y)
         
         timer.start()
-        Y_hat_stacked = self.svc_classifier.predict(test.X_stack())
+        Y_hat_stacked = self.classifier.predict(test.X_stack())
         timer.stop()
 
         Y_hat = test.Unstack(Y_hat_stacked, k=1)
         
         if Y is not None:
-            classification = classification_report(test.Y_stack(), Y_hat_stacked) # .flatten()
+            classification = classification_report(test.Y_stack(), Y_hat_stacked)
             print(classification)
 
             if plot:
@@ -58,14 +51,62 @@ class SVM:
                 plt.imshow(np.squeeze(Y[selected]))
                 plt.axis('off')
                 plt.subplot(122)
-                plt.title("SVM Classification")
+                plt.title("Classification")
                 img = plt.imshow(np.squeeze(Y_hat[selected]))
                 mypackage.Dataset._Dataset__add_legend_to_image(Y_hat[selected], img)
                 plt.axis('off');
 
         return Y_hat
-    
 
+# Does not perform as well as the default SVM and LogReg
+#     -> https://datascience.stackexchange.com/questions/6676/scikit-learn-getting-sgdclassifier-to-predict-as-well-as-a-logistic-regression
+class SGD(Learner):
+    def __init__(self, X_train, Y_train, saved_mode_name="latest_SGD_model.sav"):
+        super().__init__(X_train, Y_train, saved_mode_name)
+        
+    def train(self, loss="hinge", penalty="l2", max_iter=20, **kwargs):
+        train = mypackage.StackTransform(self.X_train, self.Y_train)
+
+        # With loss=‘hinge’, gives a linear SVM -> https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.SGDClassifier.html#sklearn.linear_model.SGDClassifier
+        self.classifier = SGDClassifier(n_jobs=-1, loss=loss, penalty=penalty, **kwargs)
+        timer.start()
+        self.classifier.fit(train.X_stack(), train.Y_stack().ravel())
+        timer.stop()
+
+        self.save_model()
+
+class SVM(Learner):
+    def __init__(self, X_train, Y_train, C=1, kernel='rbf', saved_mode_name="latest_svm_model.sav"):
+        super().__init__(X_train, Y_train, saved_mode_name)
+        self.C      = C
+        self.kernel = kernel
+        
+    def train(self):
+        train = mypackage.StackTransform(self.X_train, self.Y_train)
+
+        self.classifier = svm.SVC(C=self.C, kernel=self.kernel, decision_function_shape='ovr')
+        timer.start()
+        self.classifier.fit(train.X_stack(), train.Y_stack().ravel())
+        timer.stop()
+
+        self.save_model()
+    
+class LogReg(Learner):
+    def __init__(self, X_train, Y_train, C=1e5, max_iter=50000, saved_mode_name="latest_LogisticReg_model.sav"):
+        super().__init__(X_train, Y_train, saved_mode_name)
+        self.C        = C
+        self.max_iter = max_iter
+        
+    def train(self):
+        train = mypackage.StackTransform(self.X_train, self.Y_train)
+
+        self.classifier = LogisticRegression(C=self.C, max_iter=self.max_iter, multi_class='ovr')
+        timer.start()
+        self.classifier.fit(train.X_stack(), train.Y_stack().ravel())
+        timer.stop()
+
+        self.save_model()
+    
 def logistic_regression(X_train, Y_train, X_test, Y_test, C=1e5, plot=True, metrics=True, max_iter=10000):
     train = mypackage.StackTransform(X_train, Y_train)
 
