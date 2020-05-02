@@ -165,8 +165,6 @@ class HybridSN:
                 Y_train = None        # If None then re-uses initialized training data
                 freeze_upto = i       # Re-trains all layers from number i, -i re-trains the last i layers
         '''
-        X_input, Y_input = self.__preprocess(self, X, Y)
-
         # load best weights
         self.model.load_weights(self.saved_mode_name)
 
@@ -177,13 +175,29 @@ class HybridSN:
         # Freeze all the layers before the `fine_tune_at` layer
         for layer in self.model.layers[:freeze_up_to]:
             layer.trainable = False
-            
-        gen = self.__data_generator(data=X_train, label=Y_train)
+        
+        # checkpoint
+        checkpoint = ModelCheckpoint(self.saved_mode_name, monitor='accuracy', verbose=1, save_best_only=True, mode='max')
+        callbacks_list = [checkpoint]
+        
+        # TODO: Fix this train/validation split
+        gen_train = self.__data_generator(data=self.X_train, label=self.Y_train)
+        gen_test  = self.__data_generator(data=self.X_test,  label=self.Y_test)
+        print("Warning using other data then expectred")
             
         # Then recompile the model
         #    and then train the model
+        
+        count, n, m, k = self.X_train.shape
+        steps_per_epoch = count
+        val_steps_per_epoch = len(self.X_test)
+
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=['accuracy'])
-        self.history = self.model.fit_generator(gen, steps_per_epoch=len(X_train), epochs=epochs, callbacks=None, validation_split=0.1, **kwargs)
+        self.history = self.model.fit_generator(gen_train, steps_per_epoch=steps_per_epoch, validation_data=gen_test, validation_steps=val_steps_per_epoch, max_queue_size=1, workers=1, epochs=epochs, callbacks=callbacks_list, **kwargs)
+        
+        # Un-Freeze all the layers before the `fine_tune_at` layer
+        for layer in self.model.layers[:freeze_up_to]:
+            layer.trainable = True
 
     def plot_training_results(self):
         # TODO: Do a side by side subplot of these two
