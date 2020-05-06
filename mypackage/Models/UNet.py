@@ -101,6 +101,7 @@ class UNet:
         return y_pred_test
 
     def train(self, batch_size=20, epochs=10, monitor='val_accuracy', mode='max', metrics=['accuracy'], clear_output=False, verbose=1, **kwargs):
+#         metrics.append(tf.keras.metrics.MeanIoU(num_classes=3))
         # compiling the model
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer, metrics=metrics)
 
