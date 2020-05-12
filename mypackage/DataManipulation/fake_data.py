@@ -11,9 +11,9 @@ import matplotlib.patches as mpatches
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 DATA_BASE_PATH = f"{DIR_PATH}/SpectralAbsorbtionDatabase.pkl"
-TYPE_BACKGROUND  = 1
-TYPE_CHICKEN     = 2
-TYPE_CONTAMINANT = 3
+TYPE_BACKGROUND  = 0
+TYPE_CHICKEN     = 1
+TYPE_CONTAMINANT = 2
     
 class FakeDataset:
     
@@ -173,7 +173,7 @@ class FakeDataset:
         return x, y
     
     def get_images(self, numb_images, size=64):
-        labels_path = f"{DIR_PATH}/../../data/tomra/"
+        labels_path = f"{DIR_PATH}/../../data/tomra_day2/"
         img, labels, _ = mypackage.Dataset.load(labels_path, only_with_contaminant=True)
         
         X, Y = [], []
