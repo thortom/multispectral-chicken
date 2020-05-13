@@ -107,11 +107,11 @@ def focal_loss(gamma=2., alpha=.25):
         return tf.reduce_mean(input_tensor=reduced_fl)
     return focal_loss_fixed
 
-import tensorflow_addons as tfa
-fl = tfa.losses.SigmoidFocalCrossEntropy()
+# import tensorflow_addons as tfa
+# fl = tfa.losses.SigmoidFocalCrossEntropy()
 
 # TODO: Test this implementation of IOU out
-from keras import backend as K
+# from keras import backend as K
 def iou_coef(y_true, y_pred, smooth=1):
     # Code from: https://towardsdatascience.com/metrics-to-evaluate-your-semantic-segmentation-model-6bcb99639aa2
     intersection = K.sum(K.abs(y_true * y_pred), axis=[1,2,3])

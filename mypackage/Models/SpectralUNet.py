@@ -13,8 +13,6 @@ from sklearn.metrics import confusion_matrix, accuracy_score, classification_rep
 
 from operator import truediv
 
-from plotly.offline import init_notebook_mode
-
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io as sio

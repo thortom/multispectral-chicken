@@ -308,7 +308,7 @@ class Dataset:
         return x, y
             
     @staticmethod
-    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=2, zoom_with_noise=False, flip=True):
+    def make_zoomed_in_dataset(X, Y, size=25, sample_multiplication=5, contaminant_type=2, zoom_with_noise=0.0, flip=True):
         count, n, m, k = X.shape
         output_count = count*sample_multiplication
         enlarged_X = np.zeros((output_count, size, size, k))
@@ -317,7 +317,7 @@ class Dataset:
         for i in range(output_count):
             choice = np.random.choice(count)
             # TODO: Here return one image from each contaminant group. See https://stackoverflow.com/questions/46737409/finding-connected-components-in-a-pixel-array
-            x, y = Dataset.zoom_in_on_contaminant(X[choice], Y[choice], size=size, contaminant_type=contaminant_type, zoom_with_noise=0)
+            x, y = Dataset.zoom_in_on_contaminant(X[choice], Y[choice], size=size, contaminant_type=contaminant_type, zoom_with_noise=zoom_with_noise)
             if flip:
                 x, y = Dataset.random_flip(x, y, axis='|')
                 x, y = Dataset.random_flip(x, y, axis='-')
@@ -339,7 +339,7 @@ class Dataset:
         return min_val, max_val
             
     @staticmethod
-    def zoom_in_on_contaminant(img, label, size=32, contaminant_type=2, zoom_with_noise=0):
+    def zoom_in_on_contaminant(img, label, size=32, contaminant_type=2, zoom_with_noise=0.0):
         MIN, MAX = 0, 100
         
         indices_x, indices_y, _ = np.nonzero(label == contaminant_type)

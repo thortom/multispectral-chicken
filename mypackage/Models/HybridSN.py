@@ -18,15 +18,11 @@ from sklearn.metrics import confusion_matrix, accuracy_score, classification_rep
 
 from operator import truediv
 
-from plotly.offline import init_notebook_mode
-
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io as sio
 import os
 import spectral
-
-from numba import jit
 
 class HybridSN:
 
@@ -52,7 +48,7 @@ class HybridSN:
         return selectable_pixels
     
     def __data_generator(self, data, label, aug=None, in_order=False): # batch_size=2000 was to large to fit in memory with 208 channels
-        '''Selects randomly batch_size number of pixels as targes and there corresponding patches'''
+        '''Selects batch_size number of pixels randomly as targes and their corresponding patches'''
         # https://www.pyimagesearch.com/2018/12/24/how-to-use-keras-fit-and-fit_generator-a-hands-on-tutorial/
         # https://www.tensorflow.org/guide/data#consuming_python_generators
         # https://www.tensorflow.org/api_docs/python/tf/data/Dataset#from_generator
@@ -71,7 +67,10 @@ class HybridSN:
             i = image_order.pop()
             X, Y = [], []
 
-            for r, c in selectable_pixels:
+            max_batch_size = len(selectable_pixels) # The max_batch_size is 1024 (32x32)
+            selected_index = np.random.choice(max_batch_size, 512, replace=False)
+            for j in selected_index: #r, c in selectable_pixels[selected_index]:
+                r, c = selectable_pixels[j]
                 patch = data[i, r - margin:r + margin + 1, c - margin:c + margin + 1]
                 X.append(patch)
                 Y.append(label[i, r, c]) # The original code had an error here. It was label[r-margin, c-margin]
@@ -87,7 +86,7 @@ class HybridSN:
 
             # print(f"X: {X.shape}")
 
-            yield (X, Y)   # The batch_size is fixed to windowSize^2
+            yield (X, Y)   # The batch_size is fixed to all possible patches for one image
 
     def __scale_output(self, data):
         if self.scale_factor > 0:

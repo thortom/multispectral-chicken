@@ -76,15 +76,16 @@ class SGD(Learner):
         self.save_model()
 
 class SVM(Learner):
-    def __init__(self, X_train, Y_train, C=1, kernel='rbf', saved_mode_name="latest_svm_model.sav"):
+    def __init__(self, X_train, Y_train, C=1, kernel='rbf', gamma=1, saved_mode_name="latest_svm_model.sav"):
         super().__init__(X_train, Y_train, saved_mode_name)
         self.C      = C
         self.kernel = kernel
+        self.gamma  = gamma
         
     def train(self):
         train = mypackage.StackTransform(self.X_train, self.Y_train)
 
-        self.classifier = svm.SVC(C=self.C, kernel=self.kernel, decision_function_shape='ovr')
+        self.classifier = svm.SVC(C=self.C, kernel=self.kernel, gamma=self.gamma, decision_function_shape='ovr', verbose=True)
         timer.start()
         self.classifier.fit(train.X_stack(), train.Y_stack().ravel())
         timer.stop()
@@ -92,15 +93,22 @@ class SVM(Learner):
         self.save_model()
     
 class LogReg(Learner):
-    def __init__(self, X_train, Y_train, C=1e5, max_iter=50000, saved_mode_name="latest_LogisticReg_model.sav"):
+    def __init__(self, X_train, Y_train, C=1e5, penalty='l2', max_iter=50000, saved_mode_name="latest_LogisticReg_model.sav"):
         super().__init__(X_train, Y_train, saved_mode_name)
         self.C        = C
         self.max_iter = max_iter
+        self.penalty  = penalty
         
     def train(self):
         train = mypackage.StackTransform(self.X_train, self.Y_train)
 
-        self.classifier = LogisticRegression(C=self.C, max_iter=self.max_iter, multi_class='ovr')
+        if self.penalty == 'l2':
+            solver = 'saga'
+            n_jobs = -1
+        if self.penalty == 'l1':
+            solver = 'liblinear'
+            n_jobs = None
+        self.classifier = LogisticRegression(C=self.C, max_iter=self.max_iter, penalty=self.penalty, solver=solver, multi_class='ovr', n_jobs=n_jobs)
         timer.start()
         self.classifier.fit(train.X_stack(), train.Y_stack().ravel())
         timer.stop()
