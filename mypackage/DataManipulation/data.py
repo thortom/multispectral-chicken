@@ -236,6 +236,15 @@ class Dataset:
                 if type(X_test) is np.ndarray:
                     X_test  = X_test[:, :, :, 10:-10]
                     X_test  = savgol_filter(X_test,  w, polyorder = p, deriv=1, axis=-1)
+
+            elif scaler == '2nd_derivative':
+                w, p = 21, 6 # See here Code/Scripts/SpectralDimensionReduction.ipynb
+                             #   and here https://nirpyresearch.com/savitzky-golay-smoothing-method/
+                X_train = savgol_filter(X_train, w, polyorder = p, deriv=2, axis=-1)
+                X_train = X_train[:, :, :, 10:-10] # 10:-10 removes the noise at the ends # Interesting indexes are: (59, 67, 84)
+                if type(X_test) is np.ndarray:
+                    X_test  = X_test[:, :, :, 10:-10]
+                    X_test  = savgol_filter(X_test,  w, polyorder = p, deriv=2, axis=-1)
         else:
             if type(X_test) is np.ndarray:
                 test = StackTransform(X_test)

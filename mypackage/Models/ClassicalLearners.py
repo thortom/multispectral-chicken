@@ -92,7 +92,7 @@ class SVM(Learner):
 
         self.save_model()
     
-class LogReg(Learner):
+class LogReg(Learner): # TODO: Reduce the max_iter=50000 -to-> 5000
     def __init__(self, X_train, Y_train, C=1e5, penalty='l2', max_iter=50000, saved_mode_name="latest_LogisticReg_model.sav"):
         super().__init__(X_train, Y_train, saved_mode_name)
         self.C        = C
@@ -108,6 +108,8 @@ class LogReg(Learner):
         if self.penalty == 'l1':
             solver = 'liblinear'
             n_jobs = None
+            if self.max_iter > 3000: # Liblinear takes too long to converge
+                self.max_iter = 3000
         self.classifier = LogisticRegression(C=self.C, max_iter=self.max_iter, penalty=self.penalty, solver=solver, multi_class='ovr', n_jobs=n_jobs)
         timer.start()
         self.classifier.fit(train.X_stack(), train.Y_stack().ravel())
